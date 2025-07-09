@@ -1,22 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
 const FBDIGenerator3 = () => {
   const [rawFile, setRawFile] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState("AR");
   const [projectName, setProjectName] = useState("");
-  const [selectedEnv, setSelectedEnv] = useState("DEV");
+  const [envType, setEnvType] = useState("");
+  const [mappings, setMappings] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const fbdiTemplates = [
-    "AP", "AR", "GL", "FA", "CM", "EX", "TX", "INV", "PO", "OM",
-    "PIM", "MF", "CST", "WMS", "HR", "PY", "WFM", "TM", "CMP"
+    "AR", "AP", "GL", "FA", "CM", "EX", "TX", "INV", "PO",
+    "OM", "PIM", "MF", "CST", "WMS", "HR", "PY", "WFM", "TM", "CMP"
   ];
 
-  const envOptions = ["DEV", "TEST", "UAT", "PROD"];
-
-  const handleGenerate = async () => {
-    if (!rawFile || !selectedTemplate) {
-      alert("Please select a raw file and FBDI type.");
+  const handlePreview = async () => {
+    if (!rawFile || !selectedTemplate || !projectName || !envType) {
+      alert("Please fill all fields before preview.");
       return;
     }
 
@@ -24,7 +23,27 @@ const FBDIGenerator3 = () => {
     formData.append("raw_file", rawFile);
     formData.append("fbdi_type", selectedTemplate);
     formData.append("project_name", projectName);
-    formData.append("env_type", selectedEnv);
+    formData.append("env_type", envType);
+
+    try {
+      const res = await fetch("http://localhost:5000/preview-mappings", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      setMappings(data.mappings || []);
+    } catch (err) {
+      alert("Failed to preview mappings");
+    }
+  };
+
+  const handleDownload = async () => {
+    const formData = new FormData();
+    formData.append("raw_file", rawFile);
+    formData.append("fbdi_type", selectedTemplate);
+    formData.append("project_name", projectName);
+    formData.append("env_type", envType);
 
     setLoading(true);
     try {
@@ -33,11 +52,6 @@ const FBDIGenerator3 = () => {
         body: formData,
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to generate");
-      }
-
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -45,10 +59,8 @@ const FBDIGenerator3 = () => {
       a.download = "fbdi_output.zip";
       a.click();
       window.URL.revokeObjectURL(url);
-
-      alert("✓ FBDI downloaded");
     } catch (err) {
-      alert("Error: " + err.message);
+      alert("Failed to generate FBDI");
     } finally {
       setLoading(false);
     }
@@ -56,81 +68,88 @@ const FBDIGenerator3 = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <h2 className="text-xl font-bold mb-4">FBDI Generator</h2>
+      <h2 className="text-xl font-bold">FBDI Generator</h2>
 
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Left Side */}
-        <div className="flex-1 space-y-4">
-          {/* Raw File Upload */}
-          <div>
-            <label className="block font-medium mb-2">Upload Raw File (.xlsx)</label>
-            <input
-              type="file"
-              accept=".xlsx"
-              onChange={(e) => setRawFile(e.target.files[0])}
-              className="block w-full border rounded px-3 py-2"
-            />
-          </div>
-
-          {/* FBDI Type Dropdown */}
-          <div>
-            <label className="block font-medium mb-2">Select FBDI Type</label>
-            <select
-              value={selectedTemplate}
-              onChange={(e) => setSelectedTemplate(e.target.value)}
-              className="w-full border rounded px-3 py-2"
-            >
-              {fbdiTemplates.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block font-medium mb-1">Raw File</label>
+          <input type="file" accept=".xlsx" onChange={(e) => setRawFile(e.target.files[0])} />
         </div>
 
-        {/* Right Side */}
-        <div className="w-full lg:w-1/3 space-y-4">
-          {/* Project Name Input */}
-          <div>
-            <label className="block font-medium mb-2">Project Name</label>
-            <input
-              type="text"
-              placeholder="Enter project name"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              className="w-full border rounded px-3 py-2"
-            />
-          </div>
+        <div>
+          <label className="block font-medium mb-1">FBDI Type</label>
+          <select
+            value={selectedTemplate}
+            onChange={(e) => setSelectedTemplate(e.target.value)}
+            className="w-full border p-2 rounded"
+          >
+            {fbdiTemplates.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+        </div>
 
-          {/* ENV Dropdown */}
-          <div>
-            <label className="block font-medium mb-2">Select ENV</label>
-            <select
-              value={selectedEnv}
-              onChange={(e) => setSelectedEnv(e.target.value)}
-              className="w-full border rounded px-3 py-2"
-            >
-              {envOptions.map((env) => (
-                <option key={env} value={env}>
-                  {env}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div>
+          <label className="block font-medium mb-1">Project Name</label>
+          <input
+            type="text"
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            className="w-full border p-2 rounded"
+          />
+        </div>
+
+        <div>
+          <label className="block font-medium mb-1">Environment</label>
+          <input
+            type="text"
+            value={envType}
+            onChange={(e) => setEnvType(e.target.value)}
+            className="w-full border p-2 rounded"
+          />
         </div>
       </div>
 
-      {/* Generate Button */}
-      <div className="pt-4">
+      <div className="flex space-x-4 mt-4">
         <button
-          onClick={handleGenerate}
-          disabled={loading}
-          className="bg-green-600 text-white px-6 py-3 rounded hover:bg-green-700 disabled:opacity-50"
+          onClick={handlePreview}
+          className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded"
         >
-          {loading ? "Generating..." : "Generate FBDI"}
+          Preview Mappings
+        </button>
+        <button
+          onClick={handleDownload}
+          disabled={loading}
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
+        >
+          {loading ? "Generating..." : "Download FBDI"}
         </button>
       </div>
+
+      {/* Mapping Preview */}
+      {mappings.length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-lg font-semibold mb-2">Column Mappings</h3>
+          <table className="w-full border text-sm">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border px-2 py-1">Template Column</th>
+                <th className="border px-2 py-1">Raw Column</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mappings.map((m, i) => (
+                <tr key={i}>
+                  <td className="border px-2 py-1">{m.template_column}</td>
+                  <td className="border px-2 py-1">{m.raw_column || "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };
