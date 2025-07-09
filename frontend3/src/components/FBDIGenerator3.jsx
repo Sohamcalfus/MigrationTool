@@ -1,88 +1,134 @@
 import React, { useState } from 'react';
 
-const fbdiOptions = ['AR', 'AP', 'GL']; // For now only AR will work, but you can list others for UI
-
 const FBDIGenerator3 = () => {
   const [rawFile, setRawFile] = useState(null);
-  const [selectedTemplate, setSelectedTemplate] = useState('AR');
-  const [selectedProject, setSelectedProject] = useState('Project A');
-  const [selectedEnv, setSelectedEnv] = useState('DEV');
+  const [selectedTemplate, setSelectedTemplate] = useState("AR");
+  const [projectName, setProjectName] = useState("");
+  const [selectedEnv, setSelectedEnv] = useState("DEV");
+  const [loading, setLoading] = useState(false);
 
-  const handleRawFileChange = (e) => {
-    setRawFile(e.target.files[0]);
-  };
+  const fbdiTemplates = [
+    "AP", "AR", "GL", "FA", "CM", "EX", "TX", "INV", "PO", "OM",
+    "PIM", "MF", "CST", "WMS", "HR", "PY", "WFM", "TM", "CMP"
+  ];
 
-  const handleGenerateFBDI = () => {
-    alert(`Generating FBDI for template: ${selectedTemplate}, project: ${selectedProject}, env: ${selectedEnv}`);
-    // Add fetch call here later
+  const envOptions = ["DEV", "TEST", "UAT", "PROD"];
+
+  const handleGenerate = async () => {
+    if (!rawFile || !selectedTemplate) {
+      alert("Please select a raw file and FBDI type.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("raw_file", rawFile);
+    formData.append("fbdi_type", selectedTemplate);
+    formData.append("project_name", projectName);
+    formData.append("env_type", selectedEnv);
+
+    setLoading(true);
+    try {
+      const res = await fetch("http://localhost:5000/generate-fbdi-from-type", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to generate");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "fbdi_output.zip";
+      a.click();
+      window.URL.revokeObjectURL(url);
+
+      alert("✓ FBDI downloaded");
+    } catch (err) {
+      alert("Error: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="flex flex-col md:flex-row gap-6 p-6">
-      {/* Left: Raw File Upload */}
-      <div className="flex-1 card border rounded-xl p-6">
-        <h3 className="text-lg font-semibold mb-4">Attach Raw File</h3>
-        <input
-          type="file"
-          accept=".xlsx"
-          onChange={handleRawFileChange}
-          className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-        />
-        {rawFile && <p className="mt-2 text-sm text-green-600">Selected: {rawFile.name}</p>}
-      </div>
+    <div className="p-6 space-y-6">
+      <h2 className="text-xl font-bold mb-4">FBDI Generator</h2>
 
-      {/* Middle: Drag-Drop Styled FBDI Options */}
-      <div className="flex-1 card border rounded-xl p-6">
-        <h3 className="text-lg font-semibold mb-4">Choose FBDI Template Type</h3>
-        <div className="grid grid-cols-2 gap-4 overflow-y-auto max-h-64">
-          {fbdiOptions.map((option) => (
-            <div
-              key={option}
-              onClick={() => setSelectedTemplate(option)}
-              className={`cursor-pointer p-4 rounded border-2 text-center transition-all ${
-                selectedTemplate === option
-                  ? 'border-blue-500 bg-blue-50 font-semibold'
-                  : 'border-gray-200 hover:border-blue-300'
-              }`}
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Left Side */}
+        <div className="flex-1 space-y-4">
+          {/* Raw File Upload */}
+          <div>
+            <label className="block font-medium mb-2">Upload Raw File (.xlsx)</label>
+            <input
+              type="file"
+              accept=".xlsx"
+              onChange={(e) => setRawFile(e.target.files[0])}
+              className="block w-full border rounded px-3 py-2"
+            />
+          </div>
+
+          {/* FBDI Type Dropdown */}
+          <div>
+            <label className="block font-medium mb-2">Select FBDI Type</label>
+            <select
+              value={selectedTemplate}
+              onChange={(e) => setSelectedTemplate(e.target.value)}
+              className="w-full border rounded px-3 py-2"
             >
-              {option}
-            </div>
-          ))}
+              {fbdiTemplates.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Right Side */}
+        <div className="w-full lg:w-1/3 space-y-4">
+          {/* Project Name Input */}
+          <div>
+            <label className="block font-medium mb-2">Project Name</label>
+            <input
+              type="text"
+              placeholder="Enter project name"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+            />
+          </div>
+
+          {/* ENV Dropdown */}
+          <div>
+            <label className="block font-medium mb-2">Select ENV</label>
+            <select
+              value={selectedEnv}
+              onChange={(e) => setSelectedEnv(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+            >
+              {envOptions.map((env) => (
+                <option key={env} value={env}>
+                  {env}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Right: Project + ENV + Button */}
-      <div className="flex-1 card border rounded-xl p-6 space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
-          <select
-            className="w-full border-gray-300 rounded-md shadow-sm"
-            value={selectedProject}
-            onChange={(e) => setSelectedProject(e.target.value)}
-          >
-            <option>Project A</option>
-            <option>Project B</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Environment</label>
-          <select
-            className="w-full border-gray-300 rounded-md shadow-sm"
-            value={selectedEnv}
-            onChange={(e) => setSelectedEnv(e.target.value)}
-          >
-            <option>DEV</option>
-            <option>UAT</option>
-            <option>PROD</option>
-          </select>
-        </div>
-
+      {/* Generate Button */}
+      <div className="pt-4">
         <button
-          onClick={handleGenerateFBDI}
-          className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold shadow"
+          onClick={handleGenerate}
+          disabled={loading}
+          className="bg-green-600 text-white px-6 py-3 rounded hover:bg-green-700 disabled:opacity-50"
         >
-          Generate FBDI
+          {loading ? "Generating..." : "Generate FBDI"}
         </button>
       </div>
     </div>

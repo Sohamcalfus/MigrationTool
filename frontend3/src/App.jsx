@@ -1,6 +1,6 @@
 // src/App.jsx
 import React from "react";
-import FBDIGenerator from "./components/FBDIGenerator";
+import FBDIGenerator from "./components/FBDIGenerator3";
 
 function App() {
   return (
