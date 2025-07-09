@@ -15,3 +15,7 @@ class ColumnMapping(db.Model):
     
     def __repr__(self):
         return f'<ColumnMapping {self.template_column} -> {self.raw_column}>'
+
+
+
+
