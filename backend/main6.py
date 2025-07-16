@@ -20,7 +20,7 @@ print(f"Database path: {os.path.join(instance_path, 'db.sqlite3')}")
 CORS(app)
 
 # Import models AFTER app configuration
-from models import db, ColumnMapping
+from backend.models1 import db, ColumnMapping
 
 # Initialize db with app
 db.init_app(app)

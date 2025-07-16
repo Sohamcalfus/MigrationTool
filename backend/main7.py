@@ -19,7 +19,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 print(f"Database path: {app.config['SQLALCHEMY_DATABASE_URI']}")
 
 # === DB SETUP ===
-from models import db, ColumnMapping
+from backend.models1 import db, ColumnMapping
 db.init_app(app)
 
 def format_date_for_column(data_series, column_name):
