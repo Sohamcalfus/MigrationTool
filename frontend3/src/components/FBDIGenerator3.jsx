@@ -17,6 +17,12 @@ export const FBDIProvider = ({ children }) => {
   const [envType, setEnvType] = useState("");
   const [mappings, setMappings] = useState([]);
 
+  // New FBDI Operations states
+  const [generatedFBDI, setGeneratedFBDI] = useState(null);
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [jobStatuses, setJobStatuses] = useState({});
+  const [processProgress, setProcessProgress] = useState({});
+
   const fbdiTemplates = [
     "AR", "AP", "GL", "FA", "CM", "EX", "TX", "INV", "PO",
     "OM", "PIM", "MF", "CST", "WMS", "HR", "PY", "WFM", "TM", "CMP"
@@ -33,7 +39,16 @@ export const FBDIProvider = ({ children }) => {
     setEnvType,
     mappings,
     setMappings,
-    fbdiTemplates
+    fbdiTemplates,
+    // New FBDI Operations
+    generatedFBDI,
+    setGeneratedFBDI,
+    uploadedFile,
+    setUploadedFile,
+    jobStatuses,
+    setJobStatuses,
+    processProgress,
+    setProcessProgress,
   };
 
   return (

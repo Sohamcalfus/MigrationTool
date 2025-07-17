@@ -2,13 +2,17 @@ import React, { useState } from "react";
 import { FBDIProvider } from "./components/FBDIGenerator3";
 import PreviewMappings from "./components/PreviewMappings";
 import DownloadFBDI from "./components/DownloadFBDI";
+import FBDIOperations from "./components/FBDIOperations";
+import JobStatus from "./components/JobStatus";
 
 const App = () => {
   const [activeTab, setActiveTab] = useState("preview");
 
   const tabs = [
-    { id: "preview", label: "Preview Mappings" },
-    { id: "download", label: "Download FBDI" }
+    { id: "preview", label: "Preview Mappings", icon: "🔍" },
+    { id: "download", label: "Download FBDI", icon: "📥" },
+    { id: "operations", label: "FBDI Operations", icon: "⚙️" },
+    { id: "status", label: "Job Status", icon: "📊" }
   ];
 
   return (
@@ -20,7 +24,7 @@ const App = () => {
             <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
               Calfus
             </h1>
-            <p className="text-gray-600 mt-1">Data Conversion Tool</p>
+            <p className="text-gray-600 mt-1">Enterprise FBDI Management System</p>
           </div>
         </div>
 
@@ -38,6 +42,7 @@ const App = () => {
                       : "text-gray-600 hover:bg-gray-100 hover:text-indigo-600"
                   }`}
                 >
+                  <span>{tab.icon}</span>
                   <span>{tab.label}</span>
                 </button>
               ))}
@@ -48,6 +53,8 @@ const App = () => {
           <div className="transition-all duration-300">
             {activeTab === "preview" && <PreviewMappings />}
             {activeTab === "download" && <DownloadFBDI />}
+            {activeTab === "operations" && <FBDIOperations />}
+            {activeTab === "status" && <JobStatus />}
           </div>
         </div>
       </div>
