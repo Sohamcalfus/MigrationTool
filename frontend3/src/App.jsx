@@ -3,7 +3,6 @@ import { FBDIProvider } from "./components/FBDIGenerator3";
 import PreviewMappings from "./components/PreviewMappings";
 import DownloadFBDI from "./components/DownloadFBDI";
 import FBDIOperations from "./components/FBDIOperations";
-import JobStatus from "./components/JobStatus";
 
 const App = () => {
   const [activeTab, setActiveTab] = useState("preview");
@@ -11,8 +10,7 @@ const App = () => {
   const tabs = [
     { id: "preview", label: "Preview Mappings", icon: "🔍" },
     { id: "download", label: "Download FBDI", icon: "📥" },
-    { id: "operations", label: "FBDI Operations", icon: "⚙️" },
-    { id: "status", label: "Job Status", icon: "📊" }
+    { id: "operations", label: "FBDI Operations", icon: "⚙️" }
   ];
 
   return (
@@ -54,7 +52,6 @@ const App = () => {
             {activeTab === "preview" && <PreviewMappings />}
             {activeTab === "download" && <DownloadFBDI />}
             {activeTab === "operations" && <FBDIOperations />}
-            {activeTab === "status" && <JobStatus />}
           </div>
         </div>
       </div>
