@@ -5,6 +5,8 @@ from config import Config
 from models import db
 from routes import main_bp
 from fbdi_operations import fbdi_bp  # Make sure this import is correct
+from report_generator import get_execution_report_and_generate_pdf
+
 
 def create_app():
     app = Flask(__name__)

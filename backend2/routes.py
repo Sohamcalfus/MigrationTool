@@ -7,6 +7,7 @@ import io
 import os
 from models import ColumnMapping
 from utils import format_date_for_column, is_date_column, get_latest_mappings
+from report_generator import get_execution_report_and_generate_pdf  # Add this import
 
 main_bp = Blueprint('main', __name__)
 
@@ -158,4 +159,37 @@ def test_db():
         count = ColumnMapping.query.count()
         return jsonify({"status": "ok", "mapping_count": count})
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ADD THIS NEW ENDPOINT BELOW
+@main_bp.route('/generate-execution-report', methods=['POST'])
+def generate_execution_report():
+    """Generate execution report PDF from AutoInvoice request ID"""
+    try:
+        data = request.get_json()
+        autoinvoice_request_id = data.get('autoinvoice_request_id')
+        
+        if not autoinvoice_request_id:
+            return jsonify({"error": "Missing autoinvoice_request_id parameter"}), 400
+        
+        print(f"📄 Generating execution report for AutoInvoice Request ID: {autoinvoice_request_id}")
+        
+        # Call your report generation function
+        result = get_execution_report_and_generate_pdf(autoinvoice_request_id)
+        
+        if result["status"] == "success":
+            # Return the PDF file
+            pdf_path = result["files"]["pdf_report"]
+            
+            return send_file(
+                pdf_path,
+                mimetype="application/pdf",
+                as_attachment=True,
+                download_name=f"AutoInvoice_Execution_Report_{autoinvoice_request_id}.pdf"
+            )
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        print(f"Error in generate_execution_report: {e}")
         return jsonify({"error": str(e)}), 500

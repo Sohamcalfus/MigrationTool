@@ -36,6 +36,7 @@ const FBDIOperations = () => {
   const [selectedJobId, setSelectedJobId] = useState("");
   const [flowRequests, setFlowRequests] = useState([]);
   const [selectedFlowId, setSelectedFlowId] = useState("");
+  const [workflowResult, setWorkflowResult] = useState(null); // New state for workflow results
 
   // Fetch latest jobs
   const fetchLatestJobs = async () => {
@@ -52,7 +53,7 @@ const FBDIOperations = () => {
     fetchLatestJobs();
   }, []);
 
-  // Complete FBDI Workflow
+  // Updated Complete FBDI Workflow - now returns job IDs instead of report
   const handleCompleteWorkflow = async () => {
     if (!rawFile || !selectedTemplate || !projectName || !envType) {
       alert("Please fill all required fields");
@@ -77,16 +78,14 @@ const FBDIOperations = () => {
       });
 
       if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${projectName}_AutoInvoiceExecutionReport.xml`;
-        a.click();
-        URL.revokeObjectURL(url);
+        const data = await response.json(); // Now expecting JSON response
+        setWorkflowResult(data); // Store the workflow result
         
-        alert("Complete FBDI workflow finished successfully! Report downloaded.");
+        alert(`Complete FBDI workflow finished successfully! AutoInvoice Job ID: ${data.job_ids.autoinvoice_import}`);
         fetchLatestJobs();
+        
+        // Show the report generation option
+        setActiveOperation("report");
       } else {
         const errorData = await response.json();
         alert(`Error: ${errorData.error}`);
@@ -95,6 +94,50 @@ const FBDIOperations = () => {
       alert(`Error: ${error.message}`);
     } finally {
       setLoading(prev => ({ ...prev, complete: false }));
+    }
+  };
+
+  // New function to generate execution report using the AutoInvoice job ID
+  const handleGenerateExecutionReport = async (autoinvoiceJobId = null) => {
+    const jobId = autoinvoiceJobId || workflowResult?.job_ids?.autoinvoice_import || selectedJobId;
+    
+    if (!jobId) {
+      alert("Please provide an AutoInvoice job ID");
+      return;
+    }
+
+    setLoading(prev => ({ ...prev, report: true }));
+    
+    try {
+      const response = await fetch("http://localhost:5000/generate-execution-report", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json" 
+        },
+        body: JSON.stringify({ 
+          autoinvoice_request_id: jobId 
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        alert("Failed: " + (err.error || "Unknown Error"));
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `AutoInvoice_Execution_Report_${jobId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      alert("AutoInvoice execution report downloaded successfully!");
+    } catch (error) {
+      alert("Error: " + error.message);
+    } finally {
+      setLoading(prev => ({ ...prev, report: false }));
     }
   };
 
@@ -212,45 +255,6 @@ const FBDIOperations = () => {
     }
   };
 
-  const handleDownloadAutoInvoiceReport = async () => {
-    const essParams = "300000003170678,MILGARD EBS SPREADSHEET,2025-07-17,,,,,,,,,,,,,,,,,,,,Y,N";
-    
-    setLoading(prev => ({ ...prev, report: true }));
-    
-    try {
-      const response = await fetch("http://localhost:5000/fbdi/autoinvoice-import-and-get-report", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json" 
-        },
-        body: JSON.stringify({ 
-          ess_parameters: essParams 
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json();
-        alert("Failed: " + (err.error || "Unknown Error"));
-        return;
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "AutoInvoiceExecutionReport.xml";
-      a.click();
-      URL.revokeObjectURL(url);
-      
-      alert("AutoInvoice Import completed and report downloaded successfully!");
-      fetchLatestJobs();
-    } catch (error) {
-      alert("Error: " + error.message);
-    } finally {
-      setLoading(prev => ({ ...prev, report: false }));
-    }
-  };
-
   const checkJobStatus = async (jobId) => {
     try {
       const response = await fetch(`http://localhost:5000/fbdi/check-job-status/${jobId}`);
@@ -270,34 +274,13 @@ const FBDIOperations = () => {
     }
   };
 
-  const fetchFlowRequests = async (flowId) => {
-    if (!flowId) return;
-    
-    try {
-      const response = await fetch(`http://localhost:5000/fbdi/ess-flow-requests/${flowId}`);
-      const data = await response.json();
-      
-      if (response.ok) {
-        setFlowRequests(data.all_requests || []);
-        if (data.autoinvoice_report_request) {
-          alert(`AutoInvoice Report Request ID: ${data.autoinvoice_report_request.REQUESTID}`);
-        }
-      } else {
-        alert(`Error: ${data.error}`);
-      }
-    } catch (error) {
-      alert(`Error: ${error.message}`);
-    }
-  };
-
   const operations = [
     { id: "complete", label: "Complete Workflow", icon: "🚀" },
     { id: "upload", label: "Upload to UCM", icon: "📤" },
     { id: "interface", label: "Load Interface", icon: "🔄" },
     { id: "invoice", label: "Auto Invoice Import", icon: "📋" },
-    { id: "report", label: "Download Report", icon: "📊" },
-    { id: "status", label: "Job Status", icon: "⏱️" },
-    { id: "flow", label: "Flow Requests", icon: "🔗" }
+    { id: "report", label: "Generate Report", icon: "📊" },
+    { id: "status", label: "Job Status", icon: "⏱️" }
   ];
 
   return (
@@ -331,7 +314,7 @@ const FBDIOperations = () => {
           <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-purple-800 mb-4">Complete FBDI Workflow</h3>
             <p className="text-purple-700 mb-6">
-              This will execute the entire FBDI process in one go: Generate FBDI → Upload to UCM → Load Interface → Auto Invoice Import → Download Execution Report
+              This will execute the entire FBDI process: Generate FBDI → Upload to UCM → Load Interface → Auto Invoice Import
             </p>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -384,6 +367,26 @@ const FBDIOperations = () => {
               </div>
             </div>
 
+            {/* Show workflow results if available */}
+            {workflowResult && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                <h4 className="font-semibold text-green-800 mb-2">✅ Workflow Completed Successfully!</h4>
+                <div className="text-sm text-green-700 space-y-1">
+                  <p><strong>Project:</strong> {workflowResult.project_name}</p>
+                  <p><strong>FBDI Type:</strong> {workflowResult.fbdi_type}</p>
+                  <p><strong>Interface Loader Job ID:</strong> {workflowResult.job_ids.interface_loader}</p>
+                  <p><strong>AutoInvoice Import Job ID:</strong> {workflowResult.job_ids.autoinvoice_import}</p>
+                  <p><strong>Document ID:</strong> {workflowResult.document_id}</p>
+                </div>
+                <button
+                  onClick={() => handleGenerateExecutionReport(workflowResult.job_ids.autoinvoice_import)}
+                  className="mt-3 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                >
+                  📊 Generate Execution Report
+                </button>
+              </div>
+            )}
+
             <div className="bg-white rounded-lg p-4 mb-6">
               <h4 className="font-semibold text-gray-800 mb-2">Workflow Steps:</h4>
               <ul className="text-sm text-gray-600 space-y-1">
@@ -392,7 +395,6 @@ const FBDIOperations = () => {
                 <li>• Submit Interface Loader job</li>
                 <li>• Submit Auto Invoice Import job</li>
                 <li>• Wait for jobs to complete</li>
-                <li>• Download execution report XML</li>
               </ul>
             </div>
 
@@ -421,7 +423,77 @@ const FBDIOperations = () => {
         </div>
       )}
 
-      {/* All other existing tabs remain the same */}
+      {/* Generate Report Tab */}
+      {activeOperation === "report" && (
+        <div className="space-y-6">
+          <div className="bg-green-50 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-green-800 mb-4">Generate Execution Report</h3>
+            
+            {workflowResult && (
+              <div className="bg-white rounded-lg p-4 mb-4">
+                <h4 className="font-semibold text-gray-800 mb-2">Use AutoInvoice Job from Last Workflow:</h4>
+                <p className="text-sm text-gray-600 mb-3">Job ID: {workflowResult.job_ids.autoinvoice_import}</p>
+                <button
+                  onClick={() => handleGenerateExecutionReport(workflowResult.job_ids.autoinvoice_import)}
+                  disabled={loading.report}
+                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                    loading.report
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-green-500 hover:bg-green-600 text-white"
+                  }`}
+                >
+                  {loading.report ? "Generating Report..." : "📊 Generate Report for This Job"}
+                </button>
+              </div>
+            )}
+
+            <div className="bg-white rounded-lg p-4">
+              <h4 className="font-semibold text-gray-800 mb-2">Or Enter AutoInvoice Job ID Manually:</h4>
+              <div className="flex space-x-3">
+                <input
+                  type="text"
+                  value={selectedJobId}
+                  onChange={(e) => setSelectedJobId(e.target.value)}
+                  placeholder="Enter AutoInvoice job ID"
+                  className="flex-1 border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <button
+                  onClick={() => handleGenerateExecutionReport()}
+                  disabled={loading.report || !selectedJobId}
+                  className={`px-6 py-2 rounded-lg font-medium transition-all duration-300 ${
+                    loading.report || !selectedJobId
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-green-500 hover:bg-green-600 text-white"
+                  }`}
+                >
+                  {loading.report ? "Generating..." : "Generate Report"}
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 rounded-lg p-4 mt-4">
+              <h4 className="font-semibold text-blue-800 mb-2">Recent Jobs:</h4>
+              <div className="space-y-2">
+                {jobs.slice(0, 5).map((job) => (
+                  <div key={job.ReqstId} className="flex justify-between items-center bg-white rounded px-3 py-2">
+                    <div>
+                      <span className="font-medium text-gray-800">{job.ReqstId}</span>
+                      <span className="text-sm text-gray-600 ml-2">{job.JobName}</span>
+                    </div>
+                    <button
+                      onClick={() => setSelectedJobId(job.ReqstId)}
+                      className="text-blue-500 hover:text-blue-700 text-sm font-medium"
+                    >
+                      Use This Job
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Upload to UCM Tab */}
       {activeOperation === "upload" && (
         <div className="space-y-6">
@@ -456,8 +528,108 @@ const FBDIOperations = () => {
         </div>
       )}
 
-      {/* Continue with all other existing tabs... */}
-      {/* The rest of the tabs remain unchanged from the previous implementation */}
+      {/* Load Interface Tab */}
+      {activeOperation === "interface" && (
+        <div className="space-y-6">
+          <div className="bg-yellow-50 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-yellow-800 mb-4">Load Interface</h3>
+            <p className="text-yellow-700 mb-4">Submit Interface Loader job to process uploaded FBDI files.</p>
+            <button
+              onClick={handleLoadInterface}
+              disabled={loading.interface}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
+                loading.interface
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-yellow-500 hover:bg-yellow-600 text-white"
+              }`}
+            >
+              {loading.interface ? "Loading..." : "Load Interface"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Auto Invoice Import Tab */}
+      {activeOperation === "invoice" && (
+        <div className="space-y-6">
+          <div className="bg-orange-50 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-orange-800 mb-4">Auto Invoice Import</h3>
+            <p className="text-orange-700 mb-4">Submit Auto Invoice Import job to create invoices from loaded interface data.</p>
+            <button
+              onClick={handleAutoInvoiceImport}
+              disabled={loading.invoice}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
+                loading.invoice
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-orange-500 hover:bg-orange-600 text-white"
+              }`}
+            >
+              {loading.invoice ? "Importing..." : "Auto Invoice Import"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Job Status Tab */}
+      {activeOperation === "status" && (
+        <div className="space-y-6">
+          <div className="bg-gray-50 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Check Job Status</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block font-medium text-gray-700 mb-2">Job ID</label>
+                <div className="flex space-x-3">
+                  <input
+                    type="text"
+                    value={selectedJobId}
+                    onChange={(e) => setSelectedJobId(e.target.value)}
+                    placeholder="Enter job ID"
+                    className="flex-1 border-2 border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  />
+                  <button
+                    onClick={() => checkJobStatus(selectedJobId)}
+                    disabled={!selectedJobId}
+                    className={`px-6 py-2 rounded-lg font-semibold transition-all duration-300 ${
+                      !selectedJobId
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-gray-500 hover:bg-gray-600 text-white"
+                    }`}
+                  >
+                    Check Status
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-gray-800 mb-2">Recent Jobs:</h4>
+                <div className="space-y-2">
+                  {jobs.map((job) => (
+                    <div key={job.ReqstId} className="flex justify-between items-center bg-white rounded-lg p-3 border">
+                      <div>
+                        <span className="font-medium text-gray-800">{job.ReqstId}</span>
+                        <span className="text-sm text-gray-600 ml-2">{job.JobName}</span>
+                        <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
+                          job.RequestStatus === 'SUCCEEDED' ? 'bg-green-100 text-green-800' :
+                          job.RequestStatus === 'ERROR' ? 'bg-red-100 text-red-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {job.RequestStatus}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => checkJobStatus(job.ReqstId)}
+                        className="text-blue-500 hover:text-blue-700 text-sm font-medium"
+                      >
+                        Check Status
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
