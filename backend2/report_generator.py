@@ -20,7 +20,7 @@ import xml.etree.ElementTree as ET
 # -------- CONFIGURATION --------
 wsdl_url = 'https://miterbrands-ibayqy-test.fa.ocs.oraclecloud.com/xmlpserver/services/v2/ReportService?WSDL'
 username = 'FUSTST.CONVERSION'
-password = 'M1terFu81tcO%n'
+password = 'Conversion@2025'  # Ensure this is set correctly
 
 
 def get_execution_report_and_generate_pdf(autoinvoice_request_id, output_dir=None):

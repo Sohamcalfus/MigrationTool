@@ -135,7 +135,7 @@ def generate_fbdi_from_type():
             final_df.to_csv(tmp_csv.name, index=False, header=False, date_format='%Y/%m/%d')
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-                zipf.write(tmp_csv.name, arcname="fbdi_output.csv")
+                zipf.write(tmp_csv.name, arcname="RaInterfaceLinesAll.csv")
             zip_buffer.seek(0)
 
         os.remove(tmp_raw.name)
