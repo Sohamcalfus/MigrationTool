@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useFBDI } from "./FBDIGenerator3";
-import { Download, Package, CheckCircle, AlertCircle, FileText, Settings } from "lucide-react";
+import { Download, Package, CheckCircle, AlertCircle, FileText, Settings, ArrowRight, Play } from "lucide-react";
 
 const DownloadFBDI = () => {
   const {
@@ -13,7 +13,14 @@ const DownloadFBDI = () => {
     envType,
     setEnvType,
     mappings,
-    fbdiTemplates
+    fbdiTemplates,
+    // New workflow states
+    workflowStep,
+    setWorkflowStep,
+    fbdiGenerationComplete,
+    setFbdiGenerationComplete,
+    generatedFbdiFile,
+    setGeneratedFbdiFile
   } = useFBDI();
 
   const [loading, setLoading] = useState(false);
@@ -38,12 +45,19 @@ const DownloadFBDI = () => {
       });
 
       const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${projectName}_${selectedTemplate}_FBDI.zip`;
-      a.click();
-      window.URL.revokeObjectURL(url);
+      
+      // Store the generated file for later use
+      setGeneratedFbdiFile({
+        blob: blob,
+        filename: `${projectName}_${selectedTemplate}_FBDI.zip`,
+        projectName,
+        selectedTemplate,
+        envType
+      });
+      
+      // Mark generation as complete
+      setFbdiGenerationComplete(true);
+      
     } catch (err) {
       alert("Failed to generate FBDI");
     } finally {
@@ -51,6 +65,128 @@ const DownloadFBDI = () => {
     }
   };
 
+  const handleDownloadFBDI = () => {
+    if (generatedFbdiFile) {
+      const url = window.URL.createObjectURL(generatedFbdiFile.blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = generatedFbdiFile.filename;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleContinueNext = () => {
+    setWorkflowStep('process');
+  };
+
+  // Show success state with two options
+  if (fbdiGenerationComplete && generatedFbdiFile) {
+    return (
+      <div className="space-y-6">
+        {/* Success Header */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+            <div className="ml-4">
+              <h2 className="text-2xl font-semibold text-gray-900">FBDI Generated Successfully!</h2>
+              <p className="text-gray-600 mt-1">Your FBDI package is ready. Choose your next action.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Generated File Info */}
+        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+          <div className="flex items-center mb-4">
+            <Package className="w-6 h-6 text-green-600 mr-3" />
+            <h3 className="text-lg font-medium text-green-800">Generated FBDI Package</h3>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-white rounded-lg">
+                <span className="text-sm font-medium text-gray-700">Project Name</span>
+                <span className="text-sm text-gray-900">{generatedFbdiFile.projectName}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-white rounded-lg">
+                <span className="text-sm font-medium text-gray-700">Template Type</span>
+                <span className="text-sm text-gray-900">{generatedFbdiFile.selectedTemplate}</span>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-white rounded-lg">
+                <span className="text-sm font-medium text-gray-700">Environment</span>
+                <span className="text-sm text-gray-900">{generatedFbdiFile.envType}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-white rounded-lg">
+                <span className="text-sm font-medium text-gray-700">File Name</span>
+                <span className="text-sm text-gray-900 font-mono">{generatedFbdiFile.filename}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Download Option */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Download className="w-8 h-8 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Download FBDI</h3>
+              <p className="text-gray-600 mb-6">Download the generated FBDI package for manual upload</p>
+              <button
+                onClick={handleDownloadFBDI}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+              >
+                <Download className="w-5 h-5 inline mr-2" />
+                Download Package
+              </button>
+            </div>
+          </div>
+
+          {/* Continue Option */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Play className="w-8 h-8 text-green-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Continue Processing</h3>
+              <p className="text-gray-600 mb-6">Automatically proceed to FBDI Operations for Oracle Cloud processing</p>
+              <button
+                onClick={handleContinueNext}
+                className="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+              >
+                <ArrowRight className="w-5 h-5 inline mr-2" />
+                Continue Next
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Reset Option */}
+        <div className="text-center">
+          <button
+            onClick={() => {
+              setFbdiGenerationComplete(false);
+              setGeneratedFbdiFile(null);
+              setWorkflowStep('generate');
+            }}
+            className="text-gray-500 hover:text-gray-700 text-sm underline"
+          >
+            Start Over
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Original form (when not generated yet)
   return (
     <div className="space-y-6">
       {/* Header Card */}
@@ -272,7 +408,6 @@ const DownloadFBDI = () => {
         </div>
       </div>
     </div>
-    
   );
 };
 

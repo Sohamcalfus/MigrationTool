@@ -23,6 +23,13 @@ export const FBDIProvider = ({ children }) => {
   const [jobStatuses, setJobStatuses] = useState({});
   const [processProgress, setProcessProgress] = useState({});
 
+  // Workflow state management - NEW
+  const [workflowStep, setWorkflowStep] = useState('generate'); // 'generate', 'process', 'reconcile', 'complete'
+  const [fbdiGenerationComplete, setFbdiGenerationComplete] = useState(false);
+  const [fbdiProcessingComplete, setFbdiProcessingComplete] = useState(false);
+  const [generatedFbdiFile, setGeneratedFbdiFile] = useState(null);
+  const [processingResult, setProcessingResult] = useState(null);
+
   const fbdiTemplates = [
     "AR", "AP", "GL", "FA", "CM", "EX", "TX", "INV", "PO",
     "OM", "PIM", "MF", "CST", "WMS", "HR", "PY", "WFM", "TM", "CMP"
@@ -40,7 +47,7 @@ export const FBDIProvider = ({ children }) => {
     mappings,
     setMappings,
     fbdiTemplates,
-    // New FBDI Operations
+    // Existing FBDI Operations
     generatedFBDI,
     setGeneratedFBDI,
     uploadedFile,
@@ -49,6 +56,17 @@ export const FBDIProvider = ({ children }) => {
     setJobStatuses,
     processProgress,
     setProcessProgress,
+    // New workflow states
+    workflowStep,
+    setWorkflowStep,
+    fbdiGenerationComplete,
+    setFbdiGenerationComplete,
+    fbdiProcessingComplete,
+    setFbdiProcessingComplete,
+    generatedFbdiFile,
+    setGeneratedFbdiFile,
+    processingResult,
+    setProcessingResult,
   };
 
   return (
