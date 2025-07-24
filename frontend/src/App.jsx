@@ -4,17 +4,21 @@ import PreviewMappings from './components/PreviewMappings';
 import DownloadFBDI from './components/DownloadFBDI';
 import FBDIOperations from './components/FBDIOperations';
 import JobStatus from './components/JobStatus';
-import { FileText, Download, Settings, BarChart3, Menu, X } from 'lucide-react';
+import { FileText, Download, Settings, BarChart3, Menu, X, Book } from 'lucide-react';
+import ReconReport from './components/ReconReport';
+import HomePage from './components/Home';
 
 function App() {
   const [activeTab, setActiveTab] = useState('preview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const tabs = [
+    { id: 'home', label: 'Home', icon: FileText, component: (props) => <HomePage {...props} setActiveTab={setActiveTab} /> },
     { id: 'preview', label: 'Column Mapping', icon: FileText, component: PreviewMappings },
     { id: 'download', label: 'Generate FBDI', icon: Download, component: DownloadFBDI },
     { id: 'operations', label: 'Process FBDI', icon: Settings, component: FBDIOperations },
     { id: 'status', label: 'Job Status', icon: BarChart3, component: JobStatus },
+    { id: 'report', label: 'Recon Report', icon: Book, component: ReconReport },
   ];
 
   const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component;
@@ -40,17 +44,17 @@ function App() {
                     </div>
                   </div>
                   <div className="ml-4">
-                    <h1 className="text-xl font-semibold text-gray-900">FBDI Management Suite</h1>
-                    <p className="text-sm text-gray-500">Oracle Cloud Integration Platform</p>
+                    <h1 className="text-xl font-semibold text-gray-900">TransforMate</h1>
+                    <p className="text-sm text-gray-500">Calfus FBDI Management Suite</p>
                   </div>
                 </div>
               </div>
               <div className="hidden md:flex items-center space-x-4">
                 <div className="text-sm text-gray-500">
-                  Enterprise Edition
+                  Calfus Inc.
                 </div>
                 <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-gray-700">U</span>
+                  <span className="text-sm font-medium text-gray-700">C</span>
                 </div>
               </div>
             </div>
@@ -88,7 +92,7 @@ function App() {
               <div className="px-4 py-4 border-t border-gray-200">
                 <div className="text-xs text-gray-500">
                   <p className="font-medium">Version 2.1.0</p>
-                  <p>© 2025 Enterprise Solutions</p>
+                  <p>© 2025 Calfus Solutions</p>
                 </div>
               </div>
             </div>

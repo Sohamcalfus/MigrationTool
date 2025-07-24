@@ -8,6 +8,12 @@ import os
 from models import ColumnMapping
 from utils import format_date_for_column, is_date_column, get_latest_mappings
 from report_generator import get_execution_report_and_generate_pdf  # Add this import
+# Add these imports to your existing imports
+from werkzeug.utils import secure_filename
+import uuid
+from datetime import datetime
+from reconreport import ReconciliationReportGenerator
+
 
 main_bp = Blueprint('main', __name__)
 
@@ -193,3 +199,128 @@ def generate_execution_report():
     except Exception as e:
         print(f"Error in generate_execution_report: {e}")
         return jsonify({"error": str(e)}), 500
+    
+
+    # Add these routes to your existing routes.py file
+
+@main_bp.route('/reconreport/generate', methods=['POST'])
+def generate_reconciliation_report():
+    """Generate reconciliation report"""
+    try:
+        # Check if file is present
+        if 'rawFile' not in request.files:
+            return jsonify({'error': 'No raw file uploaded'}), 400
+        
+        raw_file = request.files['rawFile']
+        if raw_file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Validate file type
+        if not raw_file.filename.lower().endswith(('.xlsx', '.xls')):
+            return jsonify({'error': 'Only Excel files (.xlsx, .xls) are supported'}), 400
+        
+        print(f"🔄 Processing reconciliation for file: {raw_file.filename}")
+        
+        # Save uploaded file temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_raw:
+            shutil.copyfileobj(raw_file.stream, tmp_raw)
+            raw_file_path = tmp_raw.name
+        
+        # SOAP Configuration
+        soap_config = {
+            'wsdl_url': 'https://miterbrands-ibayqy-test.fa.ocs.oraclecloud.com/xmlpserver/services/v2/ReportService?WSDL',
+            'username': 'FUSTST.CONVERSION',
+            'password': 'Conversion@2025',
+            'target_report_path': '/Custom/MITER Reports/Receivables/Reports/MITER_AR_INVOICE_REPORT.xdo'
+        }
+        
+        # Generate reconciliation report
+        generator = ReconciliationReportGenerator(soap_config)
+        result = generator.generate_reconciliation_report(raw_file_path, tempfile.gettempdir())
+        
+        # Clean up uploaded file
+        os.remove(raw_file_path)
+        
+        if result['status'] == 'success':
+            print(f"✅ Reconciliation report generated successfully: {result['output_filename']}")
+            return jsonify({
+                'status': 'success',
+                'message': 'Reconciliation report generated successfully',
+                'filename': result['output_filename'],
+                'total_records': result['total_records'],
+                'matched_records': result['matched_records'],
+                'match_percentage': result['match_percentage'],
+                'download_url': f"/reconreport/download/{result['output_filename']}"
+            })
+        else:
+            print(f"❌ Reconciliation report generation failed: {result['error']}")
+            return jsonify({
+                'status': 'error',
+                'error': result['error']
+            }), 500
+            
+    except Exception as e:
+        print(f"Error in generate_reconciliation_report: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/reconreport/download/<filename>', methods=['GET'])
+def download_reconciliation_report(filename):
+    """Download generated reconciliation report"""
+    try:
+        temp_dir = tempfile.gettempdir()
+        file_path = os.path.join(temp_dir, filename)
+        
+        if not os.path.exists(file_path):
+            return jsonify({'error': 'File not found'}), 404
+        
+        print(f"📥 Downloading reconciliation report: {filename}")
+        
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        print(f"Error in download_reconciliation_report: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/reconreport/status', methods=['GET'])
+def get_reconciliation_status():
+    """Get status of reconciliation service"""
+    return jsonify({
+        'status': 'ready',
+        'message': 'Reconciliation service is ready',
+        'service': 'Reconciliation Report Generator'
+    })
+
+@main_bp.route('/reconreport/test', methods=['GET'])
+def test_reconciliation_service():
+    """Test endpoint to verify reconciliation service is working"""
+    try:
+        # Test SOAP connection
+        soap_config = {
+            'wsdl_url': 'https://miterbrands-ibayqy-test.fa.ocs.oraclecloud.com/xmlpserver/services/v2/ReportService?WSDL',
+            'username': 'FUSTST.CONVERSION',
+            'password': 'Conversion@2025',
+            'target_report_path': '/Custom/MITER Reports/Receivables/Reports/MITER_AR_INVOICE_REPORT.xdo'
+        }
+        
+        generator = ReconciliationReportGenerator(soap_config)
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Reconciliation service is operational',
+            'soap_config': {
+                'wsdl_url': soap_config['wsdl_url'],
+                'username': soap_config['username'],
+                'target_report_path': soap_config['target_report_path']
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
