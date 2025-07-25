@@ -21,6 +21,9 @@ const FBDIOperations = () => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [autoStarted, setAutoStarted] = useState(false);
+  
+  // Add loading state for ESS report download
+  const [essReportLoading, setEssReportLoading] = useState(false);
 
   // Auto-start processing when component loads (if coming from workflow)
   useEffect(() => {
@@ -90,25 +93,40 @@ const FBDIOperations = () => {
     }
   };
 
-  const handleDownloadESS = () => {
-    if (result?.autoinvoice_job_id) {
-      fetch("http://localhost:5000/generate-execution-report", {
+  // Updated handleDownloadESS with loading state
+  const handleDownloadESS = async () => {
+    if (!result?.autoinvoice_job_id) return;
+
+    setEssReportLoading(true);
+    
+    try {
+      console.log("📄 Generating ESS report...");
+      
+      const response = await fetch("http://localhost:5000/generate-execution-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           autoinvoice_request_id: result.autoinvoice_job_id 
         })
-      })
-      .then(response => response.blob())
-      .then(blob => {
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
         a.download = `AutoInvoice_Report_${result.autoinvoice_job_id}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
-      })
-      .catch(err => alert("Error generating report: " + err.message));
+        console.log("✅ ESS report downloaded successfully");
+      } else {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    } catch (err) {
+      console.error("❌ Error generating ESS report:", err);
+      alert("Error generating report: " + err.message);
+    } finally {
+      setEssReportLoading(false);
     }
   };
 
@@ -185,20 +203,43 @@ const FBDIOperations = () => {
 
         {/* Action Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Download ESS Report Option */}
+          {/* Download ESS Report Option - UPDATED WITH LOADING STATE */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
             <div className="text-center">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FileText className="w-8 h-8 text-blue-600" />
+                {essReportLoading ? (
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                ) : (
+                  <FileText className="w-8 h-8 text-blue-600" />
+                )}
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Download ESS Report</h3>
-              <p className="text-gray-600 mb-6">Download the execution report with job details and processing status</p>
+              <p className="text-gray-600 mb-6">
+                {essReportLoading 
+                  ? "Generating execution report..." 
+                  : "Download the execution report with job details and processing status"
+                }
+              </p>
               <button
                 onClick={handleDownloadESS}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                disabled={essReportLoading}
+                className={`w-full px-6 py-3 rounded-lg font-medium transition-colors ${
+                  essReportLoading
+                    ? "bg-gray-400 cursor-not-allowed text-gray-600"
+                    : "bg-blue-600 hover:bg-blue-700 text-white"
+                }`}
               >
-                <Download className="w-5 h-5 inline mr-2" />
-                Download Report
+                {essReportLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white inline mr-2"></div>
+                    Generating Report...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-5 h-5 inline mr-2" />
+                    Download Report
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -240,6 +281,7 @@ const FBDIOperations = () => {
     );
   }
 
+  // Rest of your component remains exactly the same...
   return (
     <div className="space-y-6">
       {/* Header Card */}

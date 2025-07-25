@@ -12,8 +12,7 @@ from report_generator import get_execution_report_and_generate_pdf  # Add this i
 from werkzeug.utils import secure_filename
 import uuid
 from datetime import datetime
-from reconreport import ReconciliationReportGenerator
-
+from reconreport import ReconciliationReportGenerator, generate_reconciliation_report, RAW_FILE_PATH, SOAP_CONFIG
 
 main_bp = Blueprint('main', __name__)
 
@@ -167,7 +166,6 @@ def test_db():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ADD THIS NEW ENDPOINT BELOW
 @main_bp.route('/generate-execution-report', methods=['POST'])
 def generate_execution_report():
     """Generate execution report PDF from AutoInvoice request ID"""
@@ -199,50 +197,166 @@ def generate_execution_report():
     except Exception as e:
         print(f"Error in generate_execution_report: {e}")
         return jsonify({"error": str(e)}), 500
-    
 
-    # Add these routes to your existing routes.py file
+# UPDATED RECONCILIATION ROUTES - NO FILE UPLOAD REQUIRED
 
 @main_bp.route('/reconreport/generate', methods=['POST'])
-def generate_reconciliation_report():
-    """Generate reconciliation report"""
+def generate_reconciliation_report_endpoint():
+    """Generate reconciliation report using predefined raw file path"""
     try:
-        # Check if file is present
-        if 'rawFile' not in request.files:
-            return jsonify({'error': 'No raw file uploaded'}), 400
+        print("🚀 Starting reconciliation report generation with predefined raw file...")
         
-        raw_file = request.files['rawFile']
-        if raw_file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
+        # Verify that the predefined raw file exists
+        if not os.path.exists(RAW_FILE_PATH):
+            return jsonify({
+                'status': 'error',
+                'error': f'Predefined raw file not found at: {RAW_FILE_PATH}'
+            }), 404
         
-        # Validate file type
-        if not raw_file.filename.lower().endswith(('.xlsx', '.xls')):
-            return jsonify({'error': 'Only Excel files (.xlsx, .xls) are supported'}), 400
+        print(f"📊 Using predefined raw file: {RAW_FILE_PATH}")
         
-        print(f"🔄 Processing reconciliation for file: {raw_file.filename}")
+        # Option 1: Use the standalone function (simpler approach)
+        result = generate_reconciliation_report()
         
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_raw:
-            shutil.copyfileobj(raw_file.stream, tmp_raw)
-            raw_file_path = tmp_raw.name
+        if result['status'] == 'success':
+            # Extract filename from the full path
+            output_filename = os.path.basename(result['output_file'])
+            
+            print(f"✅ Reconciliation report generated successfully: {output_filename}")
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Reconciliation report generated successfully',
+                'filename': output_filename,
+                'total_records': result['total_records'],
+                'matched_records': result['matched_records'],
+                'match_percentage': round((result['matched_records'] / result['total_records']) * 100, 2) if result['total_records'] > 0 else 0,
+                'download_url': f"/reconreport/download/{output_filename}",
+                'source_file': result['source_file']
+            })
+        else:
+            print(f"❌ Reconciliation report generation failed: {result['error']}")
+            return jsonify({
+                'status': 'error',
+                'error': result['error']
+            }), 500
+            
+    except Exception as e:
+        print(f"Error in generate_reconciliation_report_endpoint: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+@main_bp.route('/reconreport/download/<filename>', methods=['GET'])
+def download_reconciliation_report(filename):
+    """Download generated reconciliation report"""
+    try:
+        # Try multiple possible locations for the file
+        possible_locations = [
+            # Original output directory (same as raw file directory)
+            os.path.join(os.path.dirname(RAW_FILE_PATH), filename),
+            # Temp directory
+            os.path.join(tempfile.gettempdir(), filename),
+            # Current working directory
+            filename
+        ]
         
-        # SOAP Configuration
-        soap_config = {
-            'wsdl_url': 'https://miterbrands-ibayqy-test.fa.ocs.oraclecloud.com/xmlpserver/services/v2/ReportService?WSDL',
-            'username': 'FUSTST.CONVERSION',
-            'password': 'Conversion@2025',
-            'target_report_path': '/Custom/MITER Reports/Receivables/Reports/MITER_AR_INVOICE_REPORT.xdo'
-        }
+        file_path = None
+        for location in possible_locations:
+            if os.path.exists(location):
+                file_path = location
+                break
         
-        # Generate reconciliation report
-        generator = ReconciliationReportGenerator(soap_config)
-        result = generator.generate_reconciliation_report(raw_file_path, tempfile.gettempdir())
+        if not file_path:
+            return jsonify({'error': f'File not found: {filename}. Searched in: {possible_locations}'}), 404
         
-        # Clean up uploaded file
-        os.remove(raw_file_path)
+        print(f"📥 Downloading reconciliation report from: {file_path}")
+        
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        print(f"Error in download_reconciliation_report: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/reconreport/status', methods=['GET'])
+def get_reconciliation_status():
+    """Get status of reconciliation service"""
+    try:
+        # Check if raw file exists
+        raw_file_exists = os.path.exists(RAW_FILE_PATH)
+        
+        return jsonify({
+            'status': 'ready' if raw_file_exists else 'error',
+            'message': 'Reconciliation service is ready' if raw_file_exists else 'Raw file not found',
+            'service': 'Reconciliation Report Generator',
+            'raw_file_path': RAW_FILE_PATH,
+            'raw_file_exists': raw_file_exists,
+            'soap_config': {
+                'wsdl_url': SOAP_CONFIG['wsdl_url'],
+                'username': SOAP_CONFIG['username'],
+                'target_report_path': SOAP_CONFIG['target_report_path']
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        })
+
+@main_bp.route('/reconreport/test', methods=['GET'])
+def test_reconciliation_service():
+    """Test endpoint to verify reconciliation service is working"""
+    try:
+        # Test that we can import and initialize the reconciliation generator
+        generator = ReconciliationReportGenerator(SOAP_CONFIG)
+        
+        # Check if raw file exists
+        raw_file_exists = os.path.exists(RAW_FILE_PATH)
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Reconciliation service is operational',
+            'raw_file_exists': raw_file_exists,
+            'raw_file_path': RAW_FILE_PATH,
+            'soap_config': {
+                'wsdl_url': SOAP_CONFIG['wsdl_url'],
+                'username': SOAP_CONFIG['username'],
+                'target_report_path': SOAP_CONFIG['target_report_path']
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
+
+# OPTIONAL: Alternative endpoint using the class-based approach
+@main_bp.route('/reconreport/generate-class', methods=['POST'])
+def generate_reconciliation_report_class():
+    """Alternative endpoint using ReconciliationReportGenerator class"""
+    try:
+        print("🚀 Starting reconciliation report generation using class approach...")
+        
+        # Verify that the predefined raw file exists
+        if not os.path.exists(RAW_FILE_PATH):
+            return jsonify({
+                'status': 'error',
+                'error': f'Predefined raw file not found at: {RAW_FILE_PATH}'
+            }), 404
+        
+        # Initialize the reconciliation generator
+        generator = ReconciliationReportGenerator(SOAP_CONFIG)
+        
+        # Generate report using the class method
+        result = generator.generate_reconciliation_report(RAW_FILE_PATH, tempfile.gettempdir())
         
         if result['status'] == 'success':
             print(f"✅ Reconciliation report generated successfully: {result['output_filename']}")
+            
             return jsonify({
                 'status': 'success',
                 'message': 'Reconciliation report generated successfully',
@@ -260,67 +374,5 @@ def generate_reconciliation_report():
             }), 500
             
     except Exception as e:
-        print(f"Error in generate_reconciliation_report: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@main_bp.route('/reconreport/download/<filename>', methods=['GET'])
-def download_reconciliation_report(filename):
-    """Download generated reconciliation report"""
-    try:
-        temp_dir = tempfile.gettempdir()
-        file_path = os.path.join(temp_dir, filename)
-        
-        if not os.path.exists(file_path):
-            return jsonify({'error': 'File not found'}), 404
-        
-        print(f"📥 Downloading reconciliation report: {filename}")
-        
-        return send_file(
-            file_path,
-            as_attachment=True,
-            download_name=filename,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-        
-    except Exception as e:
-        print(f"Error in download_reconciliation_report: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@main_bp.route('/reconreport/status', methods=['GET'])
-def get_reconciliation_status():
-    """Get status of reconciliation service"""
-    return jsonify({
-        'status': 'ready',
-        'message': 'Reconciliation service is ready',
-        'service': 'Reconciliation Report Generator'
-    })
-
-@main_bp.route('/reconreport/test', methods=['GET'])
-def test_reconciliation_service():
-    """Test endpoint to verify reconciliation service is working"""
-    try:
-        # Test SOAP connection
-        soap_config = {
-            'wsdl_url': 'https://miterbrands-ibayqy-test.fa.ocs.oraclecloud.com/xmlpserver/services/v2/ReportService?WSDL',
-            'username': 'FUSTST.CONVERSION',
-            'password': 'Conversion@2025',
-            'target_report_path': '/Custom/MITER Reports/Receivables/Reports/MITER_AR_INVOICE_REPORT.xdo'
-        }
-        
-        generator = ReconciliationReportGenerator(soap_config)
-        
-        return jsonify({
-            'status': 'success',
-            'message': 'Reconciliation service is operational',
-            'soap_config': {
-                'wsdl_url': soap_config['wsdl_url'],
-                'username': soap_config['username'],
-                'target_report_path': soap_config['target_report_path']
-            }
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'error': str(e)
-        }), 500
+        print(f"Error in generate_reconciliation_report_class: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500

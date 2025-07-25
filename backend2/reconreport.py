@@ -13,7 +13,7 @@ SOAP_CONFIG = {
     'wsdl_url': 'https://miterbrands-ibayqy-test.fa.ocs.oraclecloud.com/xmlpserver/services/v2/ReportService?WSDL',
     'username': 'FUSTST.CONVERSION',
     'password': 'Conversion@2025',
-    'target_report_path': '/Custom/Migration Reports/Report/CUSTOMER_RECON_REPORT.xdo'
+    'target_report_path': '/Custom/MITER Reports/Receivables/Reports/MITER_AR_INVOICE_REPORT.xdo'
 }
 
 # Only raw file path needed (keeping your original)

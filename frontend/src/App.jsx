@@ -16,12 +16,9 @@ const AppContent = () => {
   // Access workflow step from context
   const { workflowStep } = useFBDI();
 
-  // Auto-switch tabs based on workflow step
+  // Auto-switch tabs based on workflow step - but skip initial 'generate' state
   useEffect(() => {
     switch (workflowStep) {
-      case 'generate':
-        setActiveTab('download');
-        break;
       case 'process':
         setActiveTab('operations');
         break;
@@ -31,6 +28,7 @@ const AppContent = () => {
       case 'complete':
         setActiveTab('report');
         break;
+      // Removed the 'generate' case so it doesn't auto-switch on initial load
       default:
         // Don't change tab for other cases
         break;
@@ -63,7 +61,7 @@ const AppContent = () => {
               </button>
               <div className="flex items-center ml-4 lg:ml-0">
                 <div className="flex-shrink-0">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+                  <div className="w-10 h-10 bg-teal-500 rounded-lg flex items-center justify-center">
                     <FileText className="w-6 h-6 text-white" />
                   </div>
                 </div>
@@ -96,7 +94,7 @@ const AppContent = () => {
                 
                 // Add workflow indicator
                 const getWorkflowIndicator = () => {
-                  if (workflowStep === 'generate' && tab.id === 'download') return '🔄';
+                  if (workflowStep === 'generate' && tab.id === 'download') return '';
                   if (workflowStep === 'process' && tab.id === 'operations') return '🔄';
                   if (workflowStep === 'reconcile' && tab.id === 'report') return '📊';
                   if (workflowStep === 'complete' && tab.id === 'report') return '✅';

@@ -1,69 +1,23 @@
 import React, { useState } from 'react';
-import { Upload, Download, FileText, CheckCircle, XCircle, AlertCircle, BarChart3, Clock } from 'lucide-react';
+import { Download, FileText, CheckCircle, XCircle, AlertCircle, BarChart3, Clock, Play } from 'lucide-react';
 
 const ReconReport = () => {
-  const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const [dragActive, setDragActive] = useState(false);
-
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileSelect({ target: { files: e.dataTransfer.files } });
-    }
-  };
-
-  const handleFileSelect = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      // Validate file type
-      const allowedTypes = [
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-excel'
-      ];
-      
-      if (!allowedTypes.includes(file.type) && !file.name.toLowerCase().endsWith('.xlsx') && !file.name.toLowerCase().endsWith('.xls')) {
-        setError('Please select a valid Excel file (.xlsx or .xls)');
-        return;
-      }
-      
-      setSelectedFile(file);
-      setError(null);
-      setResult(null);
-    }
-  };
 
   const handleGenerateReport = async () => {
-    if (!selectedFile) {
-      setError('Please select a raw file first');
-      return;
-    }
-
     setLoading(true);
     setError(null);
+    setResult(null);
 
     try {
-      const formData = new FormData();
-      formData.append('rawFile', selectedFile);
-
       const response = await fetch('http://localhost:5000/reconreport/generate', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}), // Empty body since file path is predefined
       });
 
       const data = await response.json();
@@ -106,12 +60,8 @@ const ReconReport = () => {
   };
 
   const resetForm = () => {
-    setSelectedFile(null);
     setResult(null);
     setError(null);
-    // Reset file input
-    const fileInput = document.getElementById('rawFileInput');
-    if (fileInput) fileInput.value = '';
   };
 
   return (
@@ -130,7 +80,7 @@ const ReconReport = () => {
               <div className="ml-6">
                 <h1 className="text-3xl font-bold text-gray-900">Reconciliation Report Generator</h1>
                 <p className="text-lg text-gray-600 mt-2">
-                  Generate comprehensive reconciliation reports by comparing raw data with Oracle Cloud reports
+                  Generate comprehensive reconciliation reports by comparing predefined raw data with Oracle Cloud reports
                 </p>
               </div>
             </div>
@@ -142,96 +92,77 @@ const ReconReport = () => {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-8">
             
-            {/* File Upload Section */}
+            {/* Report Generation Section */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
               <div className="mb-6">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-2">Upload Raw Data File</h2>
-                <p className="text-gray-600">Select your Excel file containing the raw invoice data for reconciliation</p>
+                <h2 className="text-2xl font-semibold text-gray-900 mb-2">Generate Reconciliation Report</h2>
+                <p className="text-gray-600">Click the button below to generate a reconciliation report using the predefined raw data file</p>
               </div>
               
-              <div className="space-y-6">
-                {/* Drag & Drop Area */}
-                <div
-                  className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 ${
-                    dragActive
-                      ? 'border-blue-400 bg-blue-50'
-                      : selectedFile
-                      ? 'border-green-400 bg-green-50'
-                      : 'border-gray-300 hover:border-gray-400'
-                  }`}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                >
-                  <input
-                    id="rawFileInput"
-                    type="file"
-                    accept=".xlsx,.xls"
-                    onChange={handleFileSelect}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
-                  
-                  <div className="space-y-4">
-                    {selectedFile ? (
-                      <>
-                        <CheckCircle className="w-12 h-12 text-green-500 mx-auto" />
-                        <div>
-                          <p className="text-lg font-medium text-green-700">{selectedFile.name}</p>
-                          <p className="text-sm text-green-600">
-                            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • Ready to process
-                          </p>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-12 h-12 text-gray-400 mx-auto" />
-                        <div>
-                          <p className="text-lg font-medium text-gray-700">
-                            Drag and drop your Excel file here
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            or click to browse (.xlsx, .xls files only)
-                          </p>
-                        </div>
-                      </>
-                    )}
+              {/* Source File Info */}
+              <div className="bg-gray-50 rounded-xl p-6 mb-6">
+                <div className="flex items-center">
+                  <FileText className="w-8 h-8 text-blue-500 mr-4" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Source Data File</h3>
+                    <p className="text-sm text-gray-600 mt-1">Customer Invoice Conversion Data - RAW File.xlsx</p>
+                    <p className="text-xs text-gray-500 mt-1">Located at: C:\Project\MigrationTool\</p>
                   </div>
                 </div>
+              </div>
 
-                {/* Action Buttons */}
-                <div className="flex justify-between items-center">
+              {/* Process Info */}
+              <div className="bg-blue-50 rounded-xl p-6 mb-6">
+                <div className="flex items-start">
+                  <AlertCircle className="w-6 h-6 text-blue-500 mr-3 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-semibold text-blue-800 mb-2">Process Overview</h4>
+                    <ul className="text-sm text-blue-700 space-y-1">
+                      <li>• Fetches target data from Oracle Cloud via SOAP API</li>
+                      <li>• Compares Customer Numbers, Invoice Numbers, Amounts, and Line Attributes</li>
+                      <li>• Generates Excel report with color-coded match results</li>
+                      <li>• Provides detailed statistics and match percentages</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <div className="text-center">
+                <button
+                  onClick={handleGenerateReport}
+                  disabled={loading}
+                  className={`inline-flex items-center px-12 py-4 rounded-xl font-semibold text-white text-lg transition-all duration-200 ${
+                    loading
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  }`}
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3"></div>
+                      Generating Report...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-6 h-6 mr-3" />
+                      Generate Reconciliation Report
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Reset Button */}
+              {(result || error) && !loading && (
+                <div className="text-center mt-4">
                   <button
                     onClick={resetForm}
-                    disabled={loading}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                    className="inline-flex items-center px-6 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-200"
                   >
                     Reset
                   </button>
-                  
-                  <button
-                    onClick={handleGenerateReport}
-                    disabled={loading || !selectedFile}
-                    className={`inline-flex items-center px-8 py-3 rounded-lg font-semibold text-white transition-all duration-200 ${
-                      loading || !selectedFile
-                        ? "bg-gray-400 cursor-not-allowed"
-                        : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                    }`}
-                  >
-                    {loading ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <BarChart3 className="w-5 h-5 mr-2" />
-                        Generate Report
-                      </>
-                    )}
-                  </button>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Results Section */}
@@ -289,14 +220,10 @@ const ReconReport = () => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Process Status</h3>
               <div className="space-y-3">
-                <div className={`flex items-center p-3 rounded-lg ${selectedFile ? 'bg-green-50' : 'bg-gray-50'}`}>
-                  {selectedFile ? (
-                    <CheckCircle className="w-5 h-5 text-green-500 mr-3" />
-                  ) : (
-                    <div className="w-5 h-5 border-2 border-gray-300 rounded-full mr-3" />
-                  )}
-                  <span className={`text-sm font-medium ${selectedFile ? 'text-green-700' : 'text-gray-600'}`}>
-                    File Selected
+                <div className="flex items-center p-3 rounded-lg bg-green-50">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-3" />
+                  <span className="text-sm font-medium text-green-700">
+                    Raw File Ready
                   </span>
                 </div>
                 
@@ -309,7 +236,7 @@ const ReconReport = () => {
                     <div className="w-5 h-5 border-2 border-gray-300 rounded-full mr-3" />
                   )}
                   <span className={`text-sm font-medium ${loading ? 'text-blue-700' : result ? 'text-green-700' : 'text-gray-600'}`}>
-                    {loading ? 'Processing...' : result ? 'Report Generated' : 'Processing Pending'}
+                    {loading ? 'Processing...' : result ? 'Report Generated' : 'Ready to Generate'}
                   </span>
                 </div>
                 
@@ -326,6 +253,21 @@ const ReconReport = () => {
               </div>
             </div>
 
+            {/* Data Source Info */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Data Sources</h3>
+              <div className="space-y-4 text-sm">
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <div className="font-semibold text-blue-800">Raw Data</div>
+                  <div className="text-blue-600 mt-1">Local Excel file with invoice conversion data</div>
+                </div>
+                <div className="p-3 bg-purple-50 rounded-lg">
+                  <div className="font-semibold text-purple-800">Target Data</div>
+                  <div className="text-purple-600 mt-1">Oracle Cloud via SOAP API</div>
+                </div>
+              </div>
+            </div>
+
             {/* Help Card */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">How it Works</h3>
@@ -334,25 +276,25 @@ const ReconReport = () => {
                   <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
                     <span className="text-xs font-semibold text-blue-600">1</span>
                   </div>
-                  <p>Upload your raw Excel file containing invoice data</p>
+                  <p>System reads predefined raw Excel file from local path</p>
                 </div>
                 <div className="flex items-start">
                   <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
                     <span className="text-xs font-semibold text-blue-600">2</span>
                   </div>
-                  <p>System fetches corresponding data from Oracle Cloud</p>
+                  <p>Fetches corresponding data from Oracle Cloud via SOAP</p>
                 </div>
                 <div className="flex items-start">
                   <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
                     <span className="text-xs font-semibold text-blue-600">3</span>
                   </div>
-                  <p>Performs detailed comparison and generates report</p>
+                  <p>Performs detailed field-by-field comparison</p>
                 </div>
                 <div className="flex items-start">
                   <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
                     <span className="text-xs font-semibold text-blue-600">4</span>
                   </div>
-                  <p>Download Excel report with color-coded matches</p>
+                  <p>Generates Excel report with color-coded matches</p>
                 </div>
               </div>
             </div>
@@ -370,8 +312,22 @@ const ReconReport = () => {
                 Generating Reconciliation Report
               </h3>
               <p className="text-gray-600 text-center">
-                Please wait while we process your data and generate the report. This may take a few minutes.
+                Please wait while we fetch data from Oracle Cloud and generate the report. This may take a few minutes.
               </p>
+              <div className="mt-4 space-y-2 text-sm text-gray-500">
+                <div className="flex items-center">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse"></div>
+                  Connecting to SOAP API...
+                </div>
+                <div className="flex items-center">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse"></div>
+                  Processing reconciliation data...
+                </div>
+                <div className="flex items-center">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse"></div>
+                  Generating Excel report...
+                </div>
+              </div>
             </div>
           </div>
         )}

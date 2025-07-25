@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useFBDI } from "./FBDIGenerator3";
-import { Upload, Eye, CheckCircle, AlertCircle, FileText } from "lucide-react";
+import { Upload, Eye, CheckCircle, AlertCircle, FileText, XCircle } from "lucide-react";
 
 const PreviewMappings = () => {
   const {
@@ -165,11 +165,11 @@ const PreviewMappings = () => {
             <div className="flex items-center space-x-4 text-sm">
               <div className="flex items-center">
                 <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-                <span className="text-gray-600">Mapped: {mappings.filter(m => m.raw_column).length}</span>
+                <span className="text-gray-600">Mapped: {mappings.filter(m => m.raw_column && m.raw_column !== "Not Mapped").length}</span>
               </div>
               <div className="flex items-center">
-                <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
-                <span className="text-gray-600">Unmapped: {mappings.filter(m => !m.raw_column).length}</span>
+                <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                <span className="text-gray-600">Not Mapped: {mappings.filter(m => !m.raw_column || m.raw_column === "Not Mapped").length}</span>
               </div>
             </div>
           </div>
@@ -184,32 +184,36 @@ const PreviewMappings = () => {
                 </tr>
               </thead>
               <tbody className="bg-white">
-                {mappings.map((m, i) => (
-                  <tr
-                    key={i}
-                    className={`${i % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-blue-50 transition-colors duration-150`}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {m.template_column}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {m.raw_column || <span className="text-gray-400">Not mapped</span>}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {m.raw_column ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Mapped
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                          <AlertCircle className="w-3 h-3 mr-1" />
-                          Unmapped
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {mappings.map((m, i) => {
+                  const isMapped = m.raw_column && m.raw_column !== "Not Mapped";
+                  
+                  return (
+                    <tr
+                      key={i}
+                      className={`${i % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-blue-50 transition-colors duration-150`}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {m.template_column}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {isMapped ? m.raw_column : <span className="text-gray-400">Not mapped</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {isMapped ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Mapped
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            <XCircle className="w-3 h-3 mr-1" />
+                            Not Mapped
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
