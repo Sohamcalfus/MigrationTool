@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useFBDI } from "./FBDIGenerator3";
 import { Upload, Play, CheckCircle, XCircle, Clock, FileText, Settings, BarChart3, Download, ArrowRight } from "lucide-react";
-
+ 
 const FBDIOperations = () => {
   const {
     generatedFbdiFile,
@@ -12,7 +12,7 @@ const FBDIOperations = () => {
     processingResult,
     setProcessingResult
   } = useFBDI();
-
+ 
   const [loading, setLoading] = useState(false);
   const [selectedFbdiFile, setSelectedFbdiFile] = useState(null);
   const [businessUnit, setBusinessUnit] = useState('300000003170678');
@@ -20,62 +20,117 @@ const FBDIOperations = () => {
   const [glDate, setGlDate] = useState(new Date().toISOString().split('T')[0]);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const [autoStarted, setAutoStarted] = useState(false);
-  
+ 
   // Add loading state for ESS report download
   const [essReportLoading, setEssReportLoading] = useState(false);
-
+ 
+  // ENHANCED PROGRESS TRACKING STATE
+  const [currentProcessingStep, setCurrentProcessingStep] = useState(null);
+  const [completedSteps, setCompletedSteps] = useState(new Set());
+ 
+  // Use useRef to track if auto-processing has been initiated
+  const autoProcessingInitiated = useRef(false);
+  const stepTimers = useRef({});
+ 
   // Auto-start processing when component loads (if coming from workflow)
   useEffect(() => {
-    if (workflowStep === 'process' && generatedFbdiFile && !autoStarted) {
-      setAutoStarted(true);
+    if (workflowStep === 'process' &&
+        generatedFbdiFile &&
+        !autoProcessingInitiated.current &&
+        !loading) {
+     
+      autoProcessingInitiated.current = true;
+     
       const autoFile = new File([generatedFbdiFile.blob], generatedFbdiFile.filename, {
         type: 'application/zip'
       });
+     
       setSelectedFbdiFile(autoFile);
-      handleProcessFBDI(autoFile);
+     
+      setTimeout(() => {
+        handleProcessFBDI(autoFile);
+      }, 0);
     }
-  }, [workflowStep, generatedFbdiFile, autoStarted]);
-
+  }, [workflowStep, generatedFbdiFile, loading]);
+ 
+  // Reset the ref when workflow step changes away from 'process'
+  useEffect(() => {
+    if (workflowStep !== 'process') {
+      autoProcessingInitiated.current = false;
+    }
+  }, [workflowStep]);
+ 
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(stepTimers.current).forEach(timer => clearTimeout(timer));
+    };
+  }, []);
+ 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     setSelectedFbdiFile(file);
     setResult(null);
     setError(null);
   };
-
+ 
   const handleProcessFBDI = async (fileArg) => {
     const file = fileArg || selectedFbdiFile;
     if (!file) {
       alert("Please select an FBDI file first");
       return;
     }
-
+ 
+    if (loading) {
+      console.log("⚠️ Processing already in progress, skipping duplicate call");
+      return;
+    }
+ 
+    // INITIALIZE PROGRESS TRACKING
     setLoading(true);
     setError(null);
     setResult(null);
-
+    setCurrentProcessingStep("upload");        // SET FIRST STEP
+    setCompletedSteps(new Set());              // CLEAR COMPLETED STEPS
+ 
+    // Clear any existing timers
+    Object.values(stepTimers.current).forEach(timer => clearTimeout(timer));
+    stepTimers.current = {};
+ 
+    // SIMULATE STEP PROGRESSION WITH TIMERS
+    stepTimers.current.interface = setTimeout(() => {
+      setCompletedSteps(prev => new Set([...prev, "upload"]));
+      setCurrentProcessingStep("interface_loader");
+    }, 2000);
+ 
+    stepTimers.current.autoinvoice = setTimeout(() => {
+      setCompletedSteps(prev => new Set([...prev, "upload", "interface_loader"]));
+      setCurrentProcessingStep("autoinvoice_import");
+    }, 4000);
+ 
     try {
       const formData = new FormData();
       formData.append("fbdi_file", file);
       formData.append("business_unit", businessUnit);
       formData.append("batch_source", batchSource);
       formData.append("gl_date", glDate);
-
+ 
       console.log("📤 Processing FBDI file:", file.name);
       console.log("📊 Parameters:", { businessUnit, batchSource, glDate });
-
+ 
       const response = await fetch("http://localhost:5000/fbdi/process-fbdi", {
         method: "POST",
         body: formData
       });
-
+ 
       const data = await response.json();
-
+ 
       if (response.ok) {
         setResult(data);
         setProcessingResult(data);
         setFbdiProcessingComplete(true);
+        // MARK ALL STEPS AS COMPLETED
+        setCompletedSteps(new Set(["upload", "interface_loader", "autoinvoice_import"]));
         console.log("✅ Workflow completed successfully:", data);
       } else {
         setError(data);
@@ -89,33 +144,40 @@ const FBDIOperations = () => {
       setError(errorData);
       console.error("❌ Network error:", err);
     } finally {
+      // CLEANUP
+      Object.values(stepTimers.current).forEach(timer => clearTimeout(timer));
+      stepTimers.current = {};
+      setCurrentProcessingStep(null);
       setLoading(false);
     }
   };
-
+ 
   // Updated handleDownloadESS with loading state
   const handleDownloadESS = async () => {
-    if (!result?.autoinvoice_job_id) return;
-
+    // Use the autoinvoice job ID from the new structure
+    const jobId = result?.autoinvoice_import?.job_id || result?.autoinvoice_job_id;
+    if (!jobId) return;
+    window.myGlobalVariable = { requestId: jobId };
+ 
     setEssReportLoading(true);
-    
+   
     try {
       console.log("📄 Generating ESS report...");
-      
+     
       const response = await fetch("http://localhost:5000/generate-execution-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          autoinvoice_request_id: result.autoinvoice_job_id 
+        body: JSON.stringify({
+          autoinvoice_request_id: jobId
         })
       });
-
+ 
       if (response.ok) {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `AutoInvoice_Report_${result.autoinvoice_job_id}.pdf`;
+        a.download = `AutoInvoice_Report_${jobId}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
         console.log("✅ ESS report downloaded successfully");
@@ -129,28 +191,122 @@ const FBDIOperations = () => {
       setEssReportLoading(false);
     }
   };
-
+ 
   const handleContinueToRecon = () => {
     setWorkflowStep('reconcile');
   };
-
+ 
   const handleReset = () => {
     setSelectedFbdiFile(null);
     setResult(null);
     setError(null);
-    setAutoStarted(false);
-    // Reset file input
+    setCurrentProcessingStep(null);           // CLEAR PROGRESS STATE
+    setCompletedSteps(new Set());             // CLEAR COMPLETED STEPS
+    autoProcessingInitiated.current = false;
+   
+    // Clear timers
+    Object.values(stepTimers.current).forEach(timer => clearTimeout(timer));
+    stepTimers.current = {};
+   
     const fileInput = document.getElementById('fbdi-file-input');
     if (fileInput) fileInput.value = '';
   };
-
+ 
+  // FIXED getStepStatus function with proper sequential tracking
   const getStepStatus = (step) => {
-    if (error?.step === step) return "error";
-    if (result) return "success";
-    if (loading) return "running";
+    // Check for errors first
+    if (error?.step === step || error?.[step]) return "error";
+   
+    // If we have final results, check actual API response
+    if (result && !loading) {
+      switch(step) {
+        case "upload":
+          return result.upload?.status === "SUCCEEDED" ? "success" : "error";
+        case "interface_loader":
+          const interfaceStatus = result.interface_loader?.RequestStatus;
+          return (interfaceStatus === "SUCCEEDED" || interfaceStatus === "WARNING") ? "success" : "error";
+        case "autoinvoice_import":
+          const invoiceStatus = result.autoinvoice_import?.RequestStatus;
+          return (invoiceStatus === "SUCCEEDED" || invoiceStatus === "WARNING") ? "success" : "error";
+        default:
+          return "pending";
+      }
+    }
+   
+    // THIS IS THE KEY FIX - During loading, use progress tracking
+    if (loading) {
+      // If step is completed, show success
+      if (completedSteps.has(step)) {
+        return "success";
+      }
+     
+      // If step is currently running, show running
+      if (currentProcessingStep === step) {
+        return "running";
+      }
+     
+      // Otherwise show pending
+      return "pending";
+    }
+   
     return "pending";
   };
-
+ 
+  // Enhanced status text with better messaging
+  const getStatusText = (step) => {
+    const status = getStepStatus(step);
+   
+    if (result && status === "success") {
+      switch(step) {
+        case "upload":
+          return `✅ Completed - Document ID: ${result.upload?.document_id || 'N/A'}`;
+        case "interface_loader":
+          const details = result.interface_loader;
+          const elapsed = details?.ElapsedTime || 'N/A';
+          return `✅ Completed in ${elapsed} - Status: ${details?.RequestStatus}`;
+        case "autoinvoice_import":
+          const invoiceDetails = result.autoinvoice_import;
+          const invoiceElapsed = invoiceDetails?.ElapsedTime || 'N/A';
+          return `✅ Completed in ${invoiceElapsed} - Status: ${invoiceDetails?.RequestStatus}`;
+      }
+    }
+   
+    // Enhanced status messages
+    switch (status) {
+      case "success":
+        return "✅ Completed successfully";
+      case "error":
+        return "❌ Failed - Check error details below";
+      case "running":
+        switch (step) {
+          case "upload": return "🔄 Uploading FBDI file to Oracle UCM...";
+          case "interface_loader": return "🔄 Loading data into Oracle interface tables...";
+          case "autoinvoice_import": return "🔄 Creating invoice transactions...";
+          default: return "🔄 Processing...";
+        }
+      case "pending":
+        if (loading) {
+          switch (step) {
+            case "upload": return "⏳ Ready to upload";
+            case "interface_loader":
+              return completedSteps.has("upload") ? "⏳ Preparing to load data..." : "⏳ Waiting for upload to complete...";
+            case "autoinvoice_import":
+              return completedSteps.has("interface_loader") ? "⏳ Preparing to create invoices..." : "⏳ Waiting for previous steps...";
+            default: return "⏳ Waiting...";
+          }
+        } else {
+          switch (step) {
+            case "upload": return "📤 Upload FBDI file to Oracle Content Management";
+            case "interface_loader": return "🔧 Load data into Oracle interface tables";
+            case "autoinvoice_import": return "🧾 Create invoice transactions from interface data";
+            default: return "⏳ Waiting...";
+          }
+        }
+      default:
+        return "⏳ Pending";
+    }
+  };
+ 
   // Show success state with two options after processing is complete
   if (fbdiProcessingComplete && result) {
     return (
@@ -169,29 +325,29 @@ const FBDIOperations = () => {
             </div>
           </div>
         </div>
-
-        {/* Processing Results */}
+ 
+        {/* Processing Results - Updated for new JSON structure */}
         <div className="bg-green-50 border border-green-200 rounded-lg p-6">
           <div className="flex items-center mb-4">
             <BarChart3 className="w-6 h-6 text-green-600 mr-3" />
             <h3 className="text-lg font-medium text-green-800">Processing Results</h3>
           </div>
-          
+         
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 bg-white rounded-lg">
                 <span className="text-sm font-medium text-gray-700">Document ID</span>
-                <span className="text-sm text-gray-900">{result.document_id}</span>
+                <span className="text-sm text-gray-900">{result.upload?.document_id || result.document_id || 'N/A'}</span>
               </div>
               <div className="flex items-center justify-between p-3 bg-white rounded-lg">
                 <span className="text-sm font-medium text-gray-700">Interface Job ID</span>
-                <span className="text-sm text-gray-900">{result.interface_job_id}</span>
+                <span className="text-sm text-gray-900">{result.interface_loader?.job_id || result.interface_job_id || 'N/A'}</span>
               </div>
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 bg-white rounded-lg">
                 <span className="text-sm font-medium text-gray-700">AutoInvoice Job ID</span>
-                <span className="text-sm text-gray-900">{result.autoinvoice_job_id}</span>
+                <span className="text-sm text-gray-900">{result.autoinvoice_import?.job_id || result.autoinvoice_job_id || 'N/A'}</span>
               </div>
               <div className="flex items-center justify-between p-3 bg-white rounded-lg">
                 <span className="text-sm font-medium text-gray-700">Status</span>
@@ -200,10 +356,9 @@ const FBDIOperations = () => {
             </div>
           </div>
         </div>
-
+ 
         {/* Action Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Download ESS Report Option - UPDATED WITH LOADING STATE */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
             <div className="text-center">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -215,8 +370,8 @@ const FBDIOperations = () => {
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Download ESS Report</h3>
               <p className="text-gray-600 mb-6">
-                {essReportLoading 
-                  ? "Generating execution report..." 
+                {essReportLoading
+                  ? "Generating execution report..."
                   : "Download the execution report with job details and processing status"
                 }
               </p>
@@ -243,8 +398,7 @@ const FBDIOperations = () => {
               </button>
             </div>
           </div>
-
-          {/* Continue to Reconciliation Option */}
+ 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
             <div className="text-center">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -262,8 +416,7 @@ const FBDIOperations = () => {
             </div>
           </div>
         </div>
-
-        {/* Reset Option */}
+ 
         <div className="text-center">
           <button
             onClick={() => {
@@ -271,6 +424,7 @@ const FBDIOperations = () => {
               setProcessingResult(null);
               setResult(null);
               setWorkflowStep('generate');
+              handleReset();
             }}
             className="text-gray-500 hover:text-gray-700 text-sm underline"
           >
@@ -280,8 +434,7 @@ const FBDIOperations = () => {
       </div>
     );
   }
-
-  // Rest of your component remains exactly the same...
+ 
   return (
     <div className="space-y-6">
       {/* Header Card */}
@@ -308,7 +461,7 @@ const FBDIOperations = () => {
           )}
         </div>
       </div>
-
+ 
       {/* Auto-processing Info */}
       {workflowStep === 'process' && generatedFbdiFile && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
@@ -332,16 +485,15 @@ const FBDIOperations = () => {
           </div>
         </div>
       )}
-
-      {/* Main Form - Only show if not in auto-workflow */}
+ 
+      {/* Main Form */}
       {workflowStep !== 'process' && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center mb-6">
             <Upload className="w-5 h-5 text-gray-600 mr-2" />
             <h3 className="text-lg font-medium text-gray-900">Upload & Process FBDI</h3>
           </div>
-
-          {/* File Upload */}
+ 
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               FBDI Package File (ZIP)
@@ -367,13 +519,10 @@ const FBDIOperations = () => {
               </div>
             )}
           </div>
-
-          {/* Parameters */}
+ 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Business Unit
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Business Unit</label>
               <input
                 type="text"
                 value={businessUnit}
@@ -382,9 +531,7 @@ const FBDIOperations = () => {
               />
             </div>
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Batch Source
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Batch Source</label>
               <input
                 type="text"
                 value={batchSource}
@@ -393,9 +540,7 @@ const FBDIOperations = () => {
               />
             </div>
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                GL Date
-              </label>
+              <label className="block text-sm font-medium text-gray-700">GL Date</label>
               <input
                 type="date"
                 value={glDate}
@@ -404,8 +549,7 @@ const FBDIOperations = () => {
               />
             </div>
           </div>
-
-          {/* Process Button */}
+ 
           <div className="flex justify-end pt-6 border-t border-gray-200">
             <button
               onClick={() => handleProcessFBDI()}
@@ -431,15 +575,15 @@ const FBDIOperations = () => {
           </div>
         </div>
       )}
-
-      {/* Workflow Progress */}
+ 
+      {/* ENHANCED Workflow Progress - NOW WORKS CORRECTLY */}
       {(loading || result || error) && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center mb-6">
             <BarChart3 className="w-5 h-5 text-gray-600 mr-2" />
             <h3 className="text-lg font-medium text-gray-900">Workflow Progress</h3>
           </div>
-
+ 
           <div className="space-y-4">
             {/* Step 1: UCM Upload */}
             <div className="flex items-center p-4 rounded-lg border border-gray-200">
@@ -455,67 +599,103 @@ const FBDIOperations = () => {
                 )}
               </div>
               <div className="flex-1">
-                <h4 className="font-medium text-gray-900">Step 1: Upload to UCM</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium text-gray-900">Step 1: Upload to UCM</h4>
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                    getStepStatus("upload") === "success" ? "bg-green-100 text-green-800" :
+                    getStepStatus("upload") === "error" ? "bg-red-100 text-red-800" :
+                    getStepStatus("upload") === "running" ? "bg-blue-100 text-blue-800" :
+                    "bg-yellow-100 text-yellow-800"
+                  }`}>
+                    {getStepStatus("upload") === "success" ? "SUCCEEDED" :
+                     getStepStatus("upload") === "error" ? "FAILED" :
+                     getStepStatus("upload") === "running" ? "RUNNING" :
+                     "WAITING"}
+                  </span>
+                </div>
                 <p className="text-sm text-gray-600">
-                  {getStepStatus("upload") === "running" ? "Uploading FBDI file..." : "Upload FBDI file to Oracle Content Management"}
+                  {getStatusText("upload")}
                 </p>
-                {result?.document_id && (
-                  <p className="text-xs text-blue-600 mt-1">Document ID: {result.document_id}</p>
-                )}
               </div>
             </div>
-
+ 
             {/* Step 2: Interface Loader */}
             <div className="flex items-center p-4 rounded-lg border border-gray-200">
               <div className="flex-shrink-0 mr-4">
-                {getStepStatus("interface_submit") === "success" ? (
+                {getStepStatus("interface_loader") === "success" ? (
                   <CheckCircle className="w-6 h-6 text-green-500" />
-                ) : getStepStatus("interface_submit") === "error" ? (
+                ) : getStepStatus("interface_loader") === "error" ? (
                   <XCircle className="w-6 h-6 text-red-500" />
-                ) : getStepStatus("interface_submit") === "running" ? (
+                ) : getStepStatus("interface_loader") === "running" ? (
                   <Clock className="w-6 h-6 text-blue-500 animate-pulse" />
                 ) : (
                   <Clock className="w-6 h-6 text-yellow-500" />
                 )}
               </div>
               <div className="flex-1">
-                <h4 className="font-medium text-gray-900">Step 2: Interface Loader</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium text-gray-900">Step 2: Interface Loader</h4>
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                    getStepStatus("interface_loader") === "success" ? "bg-green-100 text-green-800" :
+                    getStepStatus("interface_loader") === "error" ? "bg-red-100 text-red-800" :
+                    getStepStatus("interface_loader") === "running" ? "bg-blue-100 text-blue-800" :
+                    "bg-yellow-100 text-yellow-800"
+                  }`}>
+                    {getStepStatus("interface_loader") === "success" ? "SUCCEEDED" :
+                     getStepStatus("interface_loader") === "error" ? "FAILED" :
+                     getStepStatus("interface_loader") === "running" ? "RUNNING" :
+                     "WAITING"}
+                  </span>
+                </div>
                 <p className="text-sm text-gray-600">
-                  {getStepStatus("interface_submit") === "running" ? "Loading data into interface tables..." : "Load data into Oracle interface tables"}
+                  {getStatusText("interface_loader")}
                 </p>
-                {result?.interface_job_id && (
-                  <p className="text-xs text-blue-600 mt-1">Job ID: {result.interface_job_id}</p>
+                {result?.interface_loader?.job_id && (
+                  <p className="text-xs text-blue-600 mt-1">Job ID: {result.interface_loader.job_id}</p>
                 )}
               </div>
             </div>
-
+ 
             {/* Step 3: AutoInvoice Import */}
             <div className="flex items-center p-4 rounded-lg border border-gray-200">
               <div className="flex-shrink-0 mr-4">
-                {getStepStatus("autoinvoice_submit") === "success" ? (
+                {getStepStatus("autoinvoice_import") === "success" ? (
                   <CheckCircle className="w-6 h-6 text-green-500" />
-                ) : getStepStatus("autoinvoice_submit") === "error" ? (
+                ) : getStepStatus("autoinvoice_import") === "error" ? (
                   <XCircle className="w-6 h-6 text-red-500" />
-                ) : getStepStatus("autoinvoice_submit") === "running" ? (
+                ) : getStepStatus("autoinvoice_import") === "running" ? (
                   <Clock className="w-6 h-6 text-blue-500 animate-pulse" />
                 ) : (
                   <Clock className="w-6 h-6 text-yellow-500" />
                 )}
               </div>
               <div className="flex-1">
-                <h4 className="font-medium text-gray-900">Step 3: AutoInvoice Import</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium text-gray-900">Step 3: AutoInvoice Import</h4>
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                    getStepStatus("autoinvoice_import") === "success" ? "bg-green-100 text-green-800" :
+                    getStepStatus("autoinvoice_import") === "error" ? "bg-red-100 text-red-800" :
+                    getStepStatus("autoinvoice_import") === "running" ? "bg-blue-100 text-blue-800" :
+                    "bg-yellow-100 text-yellow-800"
+                  }`}>
+                    {getStepStatus("autoinvoice_import") === "success" ? "SUCCEEDED" :
+                     getStepStatus("autoinvoice_import") === "error" ? "FAILED" :
+                     getStepStatus("autoinvoice_import") === "running" ? "RUNNING" :
+                     "WAITING"}
+                  </span>
+                </div>
                 <p className="text-sm text-gray-600">
-                  {getStepStatus("autoinvoice_submit") === "running" ? "Creating invoice transactions..." : "Create invoice transactions from interface data"}
+                  {getStatusText("autoinvoice_import")}
                 </p>
-                {result?.autoinvoice_job_id && (
-                  <p className="text-xs text-blue-600 mt-1">Job ID: {result.autoinvoice_job_id}</p>
+                {result?.autoinvoice_import?.job_id && (
+                  <p className="text-xs text-blue-600 mt-1">Job ID: {result.autoinvoice_import.job_id}</p>
                 )}
               </div>
             </div>
           </div>
         </div>
       )}
-
+ 
       {/* Error Result */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
@@ -523,7 +703,7 @@ const FBDIOperations = () => {
             <XCircle className="w-6 h-6 text-red-600 mr-3" />
             <h3 className="text-lg font-medium text-red-800">Workflow Failed</h3>
           </div>
-          
+         
           <div className="space-y-4">
             <div>
               <h4 className="font-medium text-red-800">Failed at: {error.step}</h4>
@@ -531,7 +711,7 @@ const FBDIOperations = () => {
                 {typeof error.error === 'string' ? error.error : JSON.stringify(error.error)}
               </p>
             </div>
-            
+           
             {error.job_id && (
               <div>
                 <h4 className="font-medium text-red-800">Job Details:</h4>
@@ -542,7 +722,7 @@ const FBDIOperations = () => {
               </div>
             )}
           </div>
-
+ 
           <div className="mt-6 pt-4 border-t border-red-200">
             <button
               onClick={() => handleProcessFBDI()}
@@ -553,7 +733,7 @@ const FBDIOperations = () => {
           </div>
         </div>
       )}
-
+ 
       {/* Info Box */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
         <div className="flex items-center mb-4">
@@ -578,5 +758,5 @@ const FBDIOperations = () => {
     </div>
   );
 };
-
+ 
 export default FBDIOperations;

@@ -10,14 +10,14 @@ import uuid
 
 # SOAP API Configuration (keeping your original config)
 SOAP_CONFIG = {
-    'wsdl_url': 'https://miterbrands-ibayqy-test.fa.ocs.oraclecloud.com/xmlpserver/services/v2/ReportService?WSDL',
-    'username': 'FUSTST.CONVERSION',
-    'password': 'Conversion@2025',
-    'target_report_path': '/Custom/MITER Reports/Receivables/Reports/MITER_AR_INVOICE_REPORT.xdo'
+    'wsdl_url': 'https://fa-eqje-dev7-saasfademo1.ds-fa.oraclepdemos.com:443/xmlpserver/services/v2/ReportService?WSDL',
+    'username': 'Harsh.Itkar',
+    'password': 'Welcome@123',      
+    'target_report_path': '/Custom/Migration Reports/Report/AR_INVOICE_RECON_REPORT.xdo'
 }
 
 # Only raw file path needed (keeping your original)
-RAW_FILE_PATH = fr"C:\Project\MigrationTool\Customer Invoice Conversion Data - RAW File.xlsx"
+RAW_FILE_PATH = fr"C:/Project/p2/MigrationTool/Customer Invoice Conversion Data - RAW File.xlsx"
 
 # Keep your original functions exactly as they are
 def fetch_target_data_via_soap():
@@ -37,35 +37,8 @@ def fetch_target_data_via_soap():
                 'listOfParamNameValues': {
                     'item': [
                         {
-                            'name': 'P_ORG_ID',
-                            'values': {'item': ['300000003170678']},
-                            'templateParam': False,
-                            'multiValuesAllowed': False,
-                            'refreshParamOnChange': False,
-                            'selectAll': False,
-                            'useNullForAll': False
-                        },
-                        {
-                            'name': 'P_FROM_DATE',
-                            'values': {'item': ['2025-01-01']},
-                            'templateParam': False,
-                            'multiValuesAllowed': False,
-                            'refreshParamOnChange': False,
-                            'selectAll': False,
-                            'useNullForAll': False
-                        },
-                        {
-                            'name': 'P_TO_DATE',
-                            'values': {'item': ['2025-12-31']},
-                            'templateParam': False,
-                            'multiValuesAllowed': False,
-                            'refreshParamOnChange': False,
-                            'selectAll': False,
-                            'useNullForAll': False
-                        },
-                        {
-                            'name': 'P_CURRENCY_CODE',
-                            'values': {'item': ['USD']},
+                            'name': 'REQUEST_ID',
+                            'values': {'item': ['31143']},
                             'templateParam': False,
                             'multiValuesAllowed': False,
                             'refreshParamOnChange': False,
@@ -91,6 +64,7 @@ def fetch_target_data_via_soap():
         
         print(f"✅ Target data fetched: {len(target_df)} records, {len(target_df.columns)} columns")
         print("REPORT file columns:", target_df.columns.tolist())
+        print(target_df)
         return target_df
         
     except Exception as e:
@@ -297,6 +271,8 @@ def generate_reconciliation_report():
 
 # ADD THIS CLASS FOR FLASK INTEGRATION
 class ReconciliationReportGenerator:
+    request_id = '31143' 
+    
     def __init__(self, soap_config):
         self.soap_config = soap_config
         
@@ -309,7 +285,7 @@ class ReconciliationReportGenerator:
             
             # SOAP parameters with all required fields
             report_request = {
-                'reportAbsolutePath': self.soap_config['target_report_path'],
+                'reportAbsolutePath': SOAP_CONFIG['target_report_path'],
                 'sizeOfDataChunkDownload': '-1',
                 'byPassCache': True,
                 'flattenXML': False,
@@ -317,35 +293,8 @@ class ReconciliationReportGenerator:
                     'listOfParamNameValues': {
                         'item': [
                             {
-                                'name': 'P_ORG_ID',
-                                'values': {'item': ['300000003170678']},
-                                'templateParam': False,
-                                'multiValuesAllowed': False,
-                                'refreshParamOnChange': False,
-                                'selectAll': False,
-                                'useNullForAll': False
-                            },
-                            {
-                                'name': 'P_FROM_DATE',
-                                'values': {'item': ['2025-01-01']},
-                                'templateParam': False,
-                                'multiValuesAllowed': False,
-                                'refreshParamOnChange': False,
-                                'selectAll': False,
-                                'useNullForAll': False
-                            },
-                            {
-                                'name': 'P_TO_DATE',
-                                'values': {'item': ['2025-12-31']},
-                                'templateParam': False,
-                                'multiValuesAllowed': False,
-                                'refreshParamOnChange': False,
-                                'selectAll': False,
-                                'useNullForAll': False
-                            },
-                            {
-                                'name': 'P_CURRENCY_CODE',
-                                'values': {'item': ['USD']},
+                                'name': 'REQUEST_ID',
+                                'values': {'item': "31143"},
                                 'templateParam': False,
                                 'multiValuesAllowed': False,
                                 'refreshParamOnChange': False,
@@ -376,9 +325,10 @@ class ReconciliationReportGenerator:
             print(f"❌ SOAP Error: {str(e)}")
             raise Exception(f"Failed to fetch target data: {str(e)}")
 
-    def generate_reconciliation_report(self, raw_file_path, output_dir=None):
+    def generate_reconciliation_report(self, raw_file_path, output_dir=None, request_id='31143'):
         """Generate reconciliation report for Flask API"""
         try:
+            self.request_id = request_id  # Update request ID for this instance
             print("🚀 Starting Reconciliation Report Generation...")
             
             # Create output directory if not provided

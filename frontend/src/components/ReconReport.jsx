@@ -10,6 +10,7 @@ const ReconReport = () => {
     setLoading(true);
     setError(null);
     setResult(null);
+    const requestId = window.myGlobalVariable?.requestId || '468083';
 
     try {
       const response = await fetch('http://localhost:5000/reconreport/generate', {
@@ -17,7 +18,9 @@ const ReconReport = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({}), // Empty body since file path is predefined
+        body: JSON.stringify({
+          requestId: requestId,
+        }), // Empty body since file path is predefined
       });
 
       const data = await response.json();

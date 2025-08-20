@@ -339,6 +339,20 @@ def test_reconciliation_service():
 def generate_reconciliation_report_class():
     """Alternative endpoint using ReconciliationReportGenerator class"""
     try:
+        # Extract requestId from request body
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify({
+                'status': 'error',
+                'error': 'Request body is required'
+            }), 400
+            
+        request_id = request_data.get('requestId')
+        if not request_id:
+            return jsonify({
+                'status': 'error',
+                'error': 'requestId is required in request body'
+            }), 400
         print("🚀 Starting reconciliation report generation using class approach...")
         
         # Verify that the predefined raw file exists
@@ -352,7 +366,7 @@ def generate_reconciliation_report_class():
         generator = ReconciliationReportGenerator(SOAP_CONFIG)
         
         # Generate report using the class method
-        result = generator.generate_reconciliation_report(RAW_FILE_PATH, tempfile.gettempdir())
+        result = generator.generate_reconciliation_report(RAW_FILE_PATH, tempfile.gettempdir(), request_id=request_id)
         
         if result['status'] == 'success':
             print(f"✅ Reconciliation report generated successfully: {result['output_filename']}")
